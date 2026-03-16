@@ -1,0 +1,120 @@
+{
+  "projectType": "ai-ml",
+  "projectName": "VibeVoice",
+  "projectDescription": "An open-source family of frontier voice AI models from Microsoft covering long-form TTS, real-time streaming TTS, and 60-minute long-form ASR with speaker diarization.",
+  "theme": "palm",
+  "primaryColor": "#646464",
+  "lightColor": "#cdcdcd",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Overview",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "models/overview"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "ASR",
+        "groups": [
+          {
+            "group": "VibeVoice-ASR",
+            "pages": [
+              "asr/overview",
+              "asr/installation",
+              "asr/usage",
+              "asr/evaluation"
+            ]
+          },
+          {
+            "group": "Fine-tuning",
+            "pages": [
+              "asr/finetuning",
+              "asr/finetuning-inference"
+            ]
+          },
+          {
+            "group": "vLLM Deployment",
+            "pages": [
+              "asr/vllm-deployment",
+              "asr/vllm-troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "TTS",
+        "groups": [
+          {
+            "group": "VibeVoice-TTS",
+            "pages": [
+              "tts/overview",
+              "tts/architecture",
+              "tts/tips-and-faq"
+            ]
+          },
+          {
+            "group": "VibeVoice-Streaming",
+            "pages": [
+              "tts/streaming-overview",
+              "tts/streaming-installation",
+              "tts/streaming-usage"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Python API",
+            "pages": [
+              "reference/python-api",
+              "reference/processor",
+              "reference/streaming-inference"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "reference/responsible-use",
+              "reference/contributing"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "60-minute single-pass long-form ASR with speaker diarization and timestamping",
+    "90-minute multi-speaker TTS with up to 4 distinct speakers",
+    "Real-time streaming TTS with ~200ms first-audio latency (VibeVoice-Realtime-0.5B)",
+    "Customized hotwords for domain-specific ASR accuracy",
+    "50+ language multilingual support in ASR",
+    "Next-token diffusion architecture combining LLM context understanding with high-fidelity diffusion head",
+    "vLLM plugin for high-throughput OpenAI-compatible ASR API serving",
+    "LoRA fine-tuning support for ASR domain adaptation"
+  ],
+  "publicApiSurface": [
+    "VibeVoiceStreamingForConditionalGenerationInference",
+    "VibeVoiceStreamingConfig",
+    "VibeVoiceStreamingProcessor",
+    "VibeVoiceTokenizerProcessor",
+    "VibeVoiceASRForConditionalGeneration (via transformers)",
+    "vLLM plugin: POST /v1/chat/completions (OpenAI-compatible ASR endpoint)",
+    "lora_finetune.py CLI (torchrun)",
+    "inference_lora.py CLI"
+  ]
+}
