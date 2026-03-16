@@ -1,0 +1,203 @@
+---
+title: "Model overview"
+description: "Compare all three VibeVoice models — ASR, long-form TTS, and real-time streaming TTS — and choose the right one for your use case."
+---
+
+## Model family
+
+VibeVoice is a family of open-source frontier voice AI models from Microsoft covering both speech recognition and speech synthesis. All models share a common architectural foundation built around continuous speech tokenizers operating at an ultra-low frame rate of **7.5 Hz**.
+
+| Model | Size | Capability | HuggingFace | Status |
+|-------|------|------------|-------------|--------|
+| [VibeVoice-ASR-7B](https://huggingface.co/microsoft/VibeVoice-ASR) | 7B | Long-form ASR, diarization, timestamping, 50+ languages | [microsoft/VibeVoice-ASR](https://huggingface.co/microsoft/VibeVoice-ASR) | Available |
+| [VibeVoice-TTS-1.5B](https://huggingface.co/microsoft/VibeVoice-1.5B) | 1.5B | Long-form multi-speaker TTS, up to 4 speakers, 90 min | [microsoft/VibeVoice-1.5B](https://huggingface.co/microsoft/VibeVoice-1.5B) | Code disabled |
+| [VibeVoice-Realtime-0.5B](https://huggingface.co/microsoft/VibeVoice-Realtime-0.5B) | 0.5B | Real-time streaming TTS, ~200ms first-audio latency | [microsoft/VibeVoice-Realtime-0.5B](https://huggingface.co/microsoft/VibeVoice-Realtime-0.5B) | Available |
+
+<Warning>
+  VibeVoice-TTS-1.5B inference code has been disabled following instances of misuse. The model weights remain available on Hugging Face; see the [technical report](https://arxiv.org/pdf/2508.19205) for architecture details.
+</Warning>
+
+---
+
+## Model cards
+
+<CardGroup cols={2}>
+  <Card title="VibeVoice-ASR-7B" icon="microphone" href="/asr/overview">
+    60-minute long-form speech recognition. Produces structured output with speaker IDs, timestamps, and transcribed text in a single pass across 50+ languages.
+  </Card>
+  <Card title="VibeVoice-TTS-1.5B" icon="waveform" href="/tts/overview">
+    90-minute long-form multi-speaker TTS. Supports up to 4 distinct speakers with natural turn-taking, expressive speech, and multilingual synthesis.
+  </Card>
+  <Card title="VibeVoice-Realtime-0.5B" icon="bolt" href="/tts/streaming-overview">
+    Lightweight real-time TTS with streaming text input. Produces first audible speech in ~200ms, enabling LLM-to-speech pipelines that start speaking from the first token.
+  </Card>
+</CardGroup>
+
+---
+
+## Detailed specs
+
+### VibeVoice-ASR-7B
+
+<AccordionGroup>
+  <Accordion title="Key features" defaultOpen={true}>
+    - **60-minute single-pass processing** — accepts up to 60 minutes of continuous audio within a 64K token context. No chunking means no lost cross-segment speaker context.
+    - **Rich structured output** — jointly performs ASR, speaker diarization, and timestamping. Output contains who said what and when in a single generation pass.
+    - **Customized hotwords** — provide domain-specific names, technical terms, or background context to steer recognition and improve accuracy on specialized content.
+    - **50+ language support** — natively multilingual with no explicit language configuration required. Handles code-switching within and across utterances.
+    - **vLLM serving** — compatible with vLLM for high-throughput production deployments via an OpenAI-compatible `/v1/chat/completions` endpoint.
+    - **LoRA fine-tuning** — fine-tuning code is available for adapting the model to domain-specific data.
+  </Accordion>
+  <Accordion title="Technical details">
+    | Property | Value |
+    |----------|-------|
+    | Base model | Qwen2.5-7B |
+    | Context length | 64K tokens (~60 min audio) |
+    | Supported languages | 50+ |
+    | Output format | Structured segments with speaker ID, start/end timestamps, and text |
+    | Attention | Flash Attention 2 (CUDA), SDPA (MPS/CPU) |
+    | HuggingFace | [microsoft/VibeVoice-ASR](https://huggingface.co/microsoft/VibeVoice-ASR) |
+  </Accordion>
+  <Accordion title="Performance highlights">
+    Results on the MLC-Challenge multilingual benchmark:
+
+    | Language | DER | cpWER | tcpWER | WER |
+    |----------|-----|-------|--------|-----|
+    | English | 4.28 | 11.48 | 13.02 | 7.99 |
+    | German | 1.04 | 17.10 | 17.26 | 16.30 |
+    | Japanese | 0.82 | 15.33 | 15.41 | 14.69 |
+    | Spanish | 2.67 | 10.51 | 11.71 | 8.04 |
+    | Average | 3.42 | 14.81 | 15.66 | 12.07 |
+
+    See the [evaluation page](/asr/evaluation) for full results.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+### VibeVoice-TTS-1.5B
+
+<AccordionGroup>
+  <Accordion title="Key features" defaultOpen={true}>
+    - **90-minute long-form generation** — synthesizes conversational or single-speaker speech up to 90 minutes in a single pass, maintaining speaker consistency and semantic coherence throughout.
+    - **Multi-speaker support** — handles up to 4 distinct speakers in a single conversation with natural turn-taking.
+    - **Expressive speech** — captures conversational dynamics and emotional nuances without explicit style controls.
+    - **Multilingual** — supports English, Chinese, and limited other languages.
+    - **Emergent capabilities** — cross-lingual transfer and spontaneous singing are emergent behaviors not explicitly trained.
+  </Accordion>
+  <Accordion title="Technical details">
+    | Property | Value |
+    |----------|-------|
+    | Base model | Qwen2.5-1.5B |
+    | Context length | 64K tokens (~90 min audio) |
+    | Speakers per generation | Up to 4 |
+    | Languages | English, Chinese, limited others |
+    | Architecture | Next-token diffusion with acoustic + semantic tokenizers at 7.5 Hz |
+    | HuggingFace | [microsoft/VibeVoice-1.5B](https://huggingface.co/microsoft/VibeVoice-1.5B) |
+  </Accordion>
+  <Accordion title="Availability note">
+    The TTS-1.5B inference code was removed from this repository in September 2025 after Microsoft discovered the tool was being used in ways inconsistent with its stated research intent. The model weights remain publicly available on Hugging Face. See the [TTS overview](/tts/overview) and the [technical report](https://arxiv.org/pdf/2508.19205) for architecture and usage guidance.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+### VibeVoice-Realtime-0.5B
+
+<AccordionGroup>
+  <Accordion title="Key features" defaultOpen={true}>
+    - **~200ms first-audio latency** — begin producing speech before the full input text is available. Hardware-dependent; verified on NVIDIA T4 and Apple M4 Pro.
+    - **Streaming text input** — accepts incremental text chunks, enabling direct integration with LLM token streams.
+    - **Long-form generation** — 8K context window supports ~10 minutes of continuous audio in a single session.
+    - **Deployment-friendly** — at 0.5B parameters, the model fits comfortably on consumer-grade GPUs and runs in real-time on modest hardware.
+    - **Multilingual exploration** — primarily English, with experimental speakers in German, French, Italian, Japanese, Korean, Dutch, Polish, Portuguese, and Spanish.
+  </Accordion>
+  <Accordion title="Technical details">
+    | Property | Value |
+    |----------|-------|
+    | Base model | Qwen2.5-0.5B |
+    | Context length | 8K tokens (~10 min audio) |
+    | First-audio latency | ~200ms (hardware dependent) |
+    | Speakers | Single speaker per session |
+    | Voice selection | Preset `.pt` voice files (embedded prompts) |
+    | Languages | English (primary); 9 additional experimental languages |
+    | Acoustic tokenizer | 7.5 Hz frame rate |
+    | HuggingFace | [microsoft/VibeVoice-Realtime-0.5B](https://huggingface.co/microsoft/VibeVoice-Realtime-0.5B) |
+  </Accordion>
+  <Accordion title="Performance benchmarks">
+    Zero-shot TTS on LibriSpeech test-clean:
+
+    | Model | WER (%) ↓ | Speaker Similarity ↑ |
+    |-------|-----------|----------------------|
+    | VALL-E 2 | 2.40 | 0.643 |
+    | Voicebox | 1.90 | 0.662 |
+    | MELLE | 2.10 | 0.625 |
+    | **VibeVoice-Realtime-0.5B** | **2.00** | **0.695** |
+
+    See the [streaming overview](/tts/streaming-overview) for SEED benchmark results.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Shared architecture
+
+All VibeVoice models are built on two core innovations:
+
+### Next-token diffusion
+
+VibeVoice employs the [next-token diffusion](https://arxiv.org/abs/2412.08635) framework, which pairs a Large Language Model with a diffusion head:
+
+- The **LLM backbone** (based on Qwen2.5) understands textual context, dialogue flow, and long-range dependencies across the full context window.
+- The **diffusion head** generates high-fidelity acoustic details from the LLM's hidden states, enabling naturalistic speech that captures prosody and conversational dynamics.
+
+This combination allows VibeVoice models to handle sequences far longer than is practical with purely autoregressive audio token generation.
+
+### 7.5 Hz acoustic tokenizer
+
+Rather than working at the high frame rates typical of speech codecs (75 Hz or more), VibeVoice uses a continuous acoustic tokenizer operating at **7.5 Hz** — ten times lower than conventional approaches.
+
+This ultra-low frame rate:
+- **Compresses context** — a 60-minute audio file that would span millions of frames at 75 Hz fits within a 64K token window at 7.5 Hz.
+- **Preserves fidelity** — the tokenizer is continuous (not discrete), retaining fine-grained acoustic detail that VQ-based codecs lose.
+- **Reduces compute** — attention over shorter sequences is dramatically cheaper, enabling single-pass long-form processing.
+
+The streaming TTS model (`VibeVoice-Realtime-0.5B`) removes the semantic tokenizer entirely and relies solely on this acoustic tokenizer, trading multi-speaker capability for lower latency and smaller model size.
+
+---
+
+## When to use which model
+
+| Use case | Recommended model |
+|----------|-------------------|
+| Transcribe a meeting recording (< 60 min) with speaker labels | VibeVoice-ASR-7B |
+| Transcribe multilingual audio or code-switched speech | VibeVoice-ASR-7B |
+| High-throughput production transcription | VibeVoice-ASR-7B + vLLM |
+| Generate a podcast or audiobook with multiple speakers | VibeVoice-TTS-1.5B |
+| Long-form single-speaker narration (< 90 min) | VibeVoice-TTS-1.5B |
+| Real-time voice interface for an LLM assistant | VibeVoice-Realtime-0.5B |
+| Start speaking before the LLM finishes generating | VibeVoice-Realtime-0.5B |
+| Deployment on a single consumer GPU | VibeVoice-Realtime-0.5B |
+
+<Tip>
+  For interactive LLM-powered voice assistants, **VibeVoice-Realtime-0.5B** is the right choice — it starts producing audio within 200ms and streams output as new text tokens arrive. For pre-scripted long-form content, use **VibeVoice-TTS-1.5B**.
+</Tip>
+
+---
+
+## Further reading
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get running with ASR inference or streaming TTS in minutes
+  </Card>
+  <Card title="ASR usage" icon="microphone" href="/asr/usage">
+    CLI commands, Python API, batch inference, and Gradio demo for VibeVoice-ASR
+  </Card>
+  <Card title="Streaming TTS usage" icon="bolt" href="/tts/streaming-usage">
+    Voice presets, file-based inference, and the WebSocket streaming demo
+  </Card>
+  <Card title="Responsible use" icon="shield" href="/reference/responsible-use">
+    Risks, limitations, and guidelines for responsible deployment
+  </Card>
+</CardGroup>

@@ -1,0 +1,64 @@
+---
+title: "VibeVoice"
+description: "Open-source frontier voice AI — long-form TTS, real-time streaming TTS, and 60-minute ASR with speaker diarization"
+---
+
+<CardGroup cols={2}>
+  <Card title="VibeVoice-ASR" icon="microphone" href="/asr/overview">
+    60-minute long-form speech recognition with speaker diarization, timestamps, and 50+ language support
+  </Card>
+  <Card title="VibeVoice-TTS" icon="waveform" href="/tts/overview">
+    90-minute multi-speaker text-to-speech with up to 4 distinct speakers
+  </Card>
+  <Card title="VibeVoice-Streaming" icon="bolt" href="/tts/streaming-overview">
+    Real-time TTS with ~200ms first-audio latency, optimized for streaming text input
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get running with your first VibeVoice inference in minutes
+  </Card>
+</CardGroup>
+
+## What is VibeVoice?
+
+VibeVoice is a **family of open-source frontier voice AI models** from Microsoft that covers both Text-to-Speech (TTS) and Automatic Speech Recognition (ASR). All models share a core innovation: continuous speech tokenizers (Acoustic and Semantic) operating at an ultra-low frame rate of **7.5 Hz**, which efficiently preserves audio fidelity while significantly boosting computational efficiency for long sequences.
+
+VibeVoice employs a [next-token diffusion](https://arxiv.org/abs/2412.08635) framework — a Large Language Model understands textual context and dialogue flow, while a diffusion head generates high-fidelity acoustic details.
+
+## Model family
+
+| Model | Size | Capability | Status |
+|-------|------|------------|--------|
+| [VibeVoice-ASR-7B](https://huggingface.co/microsoft/VibeVoice-ASR) | 7B | Long-form ASR, diarization, timestamping | Available |
+| [VibeVoice-TTS-1.5B](https://huggingface.co/microsoft/VibeVoice-1.5B) | 1.5B | Long-form multi-speaker TTS | Code disabled |
+| [VibeVoice-Realtime-0.5B](https://huggingface.co/microsoft/VibeVoice-Realtime-0.5B) | 0.5B | Real-time streaming TTS | Available |
+
+## Key capabilities
+
+<CardGroup cols={2}>
+  <Card title="60-minute ASR" icon="clock">
+    Process up to 60 minutes of continuous audio in a single pass — no chunking, no lost context
+  </Card>
+  <Card title="Rich transcriptions" icon="list">
+    Who said what and when: speaker labels, timestamps, and transcripts in one unified output
+  </Card>
+  <Card title="90-minute TTS" icon="timer">
+    Synthesize conversational audio up to 90 minutes long with consistent speaker identity
+  </Card>
+  <Card title="Real-time streaming" icon="signal-stream">
+    Sub-200ms first-audio latency enables TTS to start speaking before LLM output is complete
+  </Card>
+  <Card title="50+ languages" icon="globe">
+    ASR natively handles multilingual audio and code-switching without explicit language configuration
+  </Card>
+  <Card title="vLLM serving" icon="server">
+    OpenAI-compatible `/v1/chat/completions` endpoint for high-throughput production ASR deployments
+  </Card>
+</CardGroup>
+
+## Responsible use
+
+VibeVoice is intended for **research and development purposes only**. High-quality synthetic speech carries real risk of misuse for deepfakes and disinformation. Please review the [responsible use guidelines](/reference/responsible-use) before deploying.
+
+<Warning>
+  Do not use VibeVoice in commercial or production applications without further testing and your own safety evaluation.
+</Warning>

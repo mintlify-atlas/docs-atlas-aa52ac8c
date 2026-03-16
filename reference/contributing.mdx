@@ -1,0 +1,105 @@
+---
+title: Contributing
+description: How to contribute to VibeVoice — submission guidelines, review policy, and security reporting.
+---
+
+VibeVoice is an academic research project. Contributions are welcome, but the project has strict standards: **code minimalism, high readability, and functional purity**.
+
+<CardGroup cols={2}>
+  <Card title="GitHub repository" icon="github" href="https://github.com/microsoft/VibeVoice">
+    Browse the source code, open issues, and submit pull requests.
+  </Card>
+  <Card title="Security reporting" icon="shield" href="https://aka.ms/SECURITY.md">
+    Report security vulnerabilities through Microsoft's official disclosure process.
+  </Card>
+  <Card title="Hugging Face collection" icon="box" href="https://huggingface.co/collections/microsoft/vibevoice-68a2ef24a875c44be47b034f">
+    Access model weights and checkpoints.
+  </Card>
+  <Card title="Project page" icon="globe" href="https://microsoft.github.io/VibeVoice">
+    Demos, examples, and research overviews.
+  </Card>
+</CardGroup>
+
+---
+
+## Preferred contributions
+
+- **Bug fixes** — clear, minimal fixes that address a specific problem.
+- **New features** — additions that serve the research community and fit the existing architecture.
+
+All contributions must be concise, readable, and written in English.
+
+---
+
+## What will be rejected
+
+<Warning>
+  Read this section carefully before investing time in a pull request.
+</Warning>
+
+<AccordionGroup>
+  <Accordion title="Over-engineering">
+    PRs that add unnecessary abstraction layers, excessive encapsulation, or complex architectural refactoring will be rejected. VibeVoice is research code, not a commercial product.
+  </Accordion>
+  <Accordion title="Style-only changes">
+    PRs that only reformat code, adjust whitespace, or rename variables without functional impact will be rejected.
+  </Accordion>
+  <Accordion title="Non-English content">
+    Code comments, documentation, commit messages, and PR descriptions must be in English. PRs containing non-English text will be rejected.
+  </Accordion>
+  <Accordion title="Unreviewed AI-generated code">
+    Large chunks of LLM-generated code are often rejected. AI-assisted code is not prohibited, but every line must be understood, verified, and cleaned by a human before submission. Every line of code must have an absolute necessity to exist.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Review policy
+
+Maintainers perform a **line-by-line manual audit** of every change. Before submitting:
+
+<Steps>
+  <Step title="Review every line yourself">
+    Read and fully understand all code logic in your diff. Do not submit changes you cannot explain.
+  </Step>
+  <Step title="Minimize the diff">
+    Remove any lines that are not strictly necessary. Each line must justify its existence.
+  </Step>
+  <Step title="Write in English">
+    All code comments, docstrings, commit messages, and PR descriptions must be in English.
+  </Step>
+  <Step title="Open an issue first for large changes">
+    For non-trivial features or refactors, open a GitHub issue to discuss the approach before writing code.
+  </Step>
+</Steps>
+
+---
+
+## Documentation standards
+
+Documentation changes follow the same rigor as code:
+
+- Changes must be **succinct and accurate**.
+- Eliminate all verbosity and redundancy.
+- Maximize information density — every sentence must contribute.
+
+---
+
+## Security vulnerability reporting
+
+<Warning>
+  Do not report security vulnerabilities through public GitHub issues.
+</Warning>
+
+Microsoft takes the security of all source code repositories seriously. To report a vulnerability:
+
+1. Visit [https://aka.ms/SECURITY.md](https://aka.ms/SECURITY.md) for current reporting instructions, contact information, and policies.
+2. Follow the coordinated disclosure process described there.
+
+This process applies to all Microsoft GitHub repositories including VibeVoice.
+
+---
+
+## Code of conduct
+
+This project follows the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). See the repository's `CODE_OF_CONDUCT.md` for details, or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with questions.

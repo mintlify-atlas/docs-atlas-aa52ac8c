@@ -1,0 +1,100 @@
+---
+title: "VibeVoice-Streaming"
+description: "Real-time text-to-speech with ~200ms first-audio latency and streaming text input"
+---
+
+**VibeVoice-Realtime-0.5B** is a lightweight real-time text-to-speech model supporting streaming text input and robust long-form speech generation. It produces initial audible speech in **~200 milliseconds** (hardware dependent), making it ideal for LLM-to-speech pipelines where output begins before the full response is generated.
+
+<CardGroup cols={2}>
+  <Card title="HuggingFace" icon="circle" href="https://huggingface.co/microsoft/VibeVoice-Realtime-0.5B">
+    Model weights on Hugging Face
+  </Card>
+  <Card title="Try on Colab" icon="play" href="https://colab.research.google.com/github/microsoft/VibeVoice/blob/main/demo/vibevoice_realtime_colab.ipynb">
+    Interactive Colab notebook
+  </Card>
+  <Card title="Installation" icon="download" href="/tts/streaming-installation">
+    Set up the environment
+  </Card>
+  <Card title="Usage" icon="terminal" href="/tts/streaming-usage">
+    Run inference and demos
+  </Card>
+</CardGroup>
+
+## Key specifications
+
+| Spec | Value |
+|------|-------|
+| Parameters | 0.5B |
+| First-audio latency | ~200ms (hardware dependent) |
+| Context window | 8K tokens (~10 minutes audio) |
+| Speakers | Single speaker |
+| Primary language | English |
+| Experimental languages | German, French, Italian, Japanese, Korean, Dutch, Polish, Portuguese, Spanish |
+
+## Use cases
+
+- **LLM-to-speech pipelines** — start speaking from the first LLM tokens, long before the full answer is generated
+- **Real-time TTS services** — low-latency voice generation for conversational AI
+- **Live data narration** — stream and speak dynamic content as it arrives
+- **Accessible interfaces** — real-time audio output for screen readers and assistive tools
+
+<Note>
+  The streaming model supports **single speaker only**. For multi-speaker conversational generation with up to 4 speakers, see [VibeVoice-TTS](/tts/overview).
+</Note>
+
+## Performance benchmarks
+
+### LibriSpeech test-clean (zero-shot TTS)
+
+| Model | WER (%) ↓ | Speaker Similarity ↑ |
+|:------|:---------:|:-----------------:|
+| VALL-E 2 | 2.40 | 0.643 |
+| Voicebox | 1.90 | 0.662 |
+| MELLE | 2.10 | 0.625 |
+| **VibeVoice-Realtime-0.5B** | **2.00** | **0.695** |
+
+### SEED test-en (zero-shot TTS)
+
+| Model | WER (%) ↓ | Speaker Similarity ↑ |
+|:------|:---------:|:-----------------:|
+| MaskGCT | 2.62 | 0.714 |
+| Seed-TTS | 2.25 | 0.762 |
+| FireRedTTS | 3.82 | 0.460 |
+| SparkTTS | 1.98 | 0.584 |
+| CosyVoice2 | 2.57 | 0.652 |
+| **VibeVoice-Realtime-0.5B** | **2.05** | **0.633** |
+
+<Info>
+  Benchmarks measure short-sentence performance. The model is optimized for **long-form generation** (~10 minutes), where it delivers its strongest results.
+</Info>
+
+## Architecture
+
+VibeVoice-Realtime uses an **interleaved windowed design** that differs from the full VibeVoice-TTS model:
+
+- Incrementally encodes incoming text chunks
+- Continues diffusion-based acoustic latent generation from prior context in parallel
+- Uses **acoustic tokenizer only** (no semantic tokenizer) for lower latency
+- Acoustic tokenizer frame rate: **7.5 Hz** (1 frame per ~133ms)
+- Base LLM: Qwen2.5-0.5B
+
+See [TTS Architecture](/tts/architecture) for a full deep-dive.
+
+## Multilingual experimental support
+
+Although the model is primarily built for English, it exhibits multilingual capability in 9 additional languages:
+
+**German, French, Italian, Japanese, Korean, Dutch, Polish, Portuguese, Spanish**
+
+<Warning>
+  Multilingual behaviors have **not been extensively tested**. Use with caution and share observations with the community. Download experimental voices with `bash demo/download_experimental_voices.sh`.
+</Warning>
+
+## Limitations
+
+- Single speaker only (no multi-speaker support)
+- English primary — other languages may produce unpredictable outputs
+- Voice customization not available without contacting the team
+- Very short inputs (3 words or fewer) may produce unstable output
+- Does not handle code, mathematical formulas, or uncommon symbols
+- Not recommended for commercial use without further testing

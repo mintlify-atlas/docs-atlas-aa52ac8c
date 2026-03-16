@@ -1,80 +1,355 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Get your first VibeVoice inference running — ASR transcription from a file or streaming TTS — in under 10 minutes."
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
+- NVIDIA GPU with CUDA support (T4 or better recommended for real-time TTS)
+- Docker (recommended for managing CUDA environments)
+- Python 3.9 or later
+- `git`
 
-### Step 1: Set up your local environment
+<Info>
+  A CPU-only setup works but will be significantly slower. MPS (Apple Silicon) is supported for local experimentation.
+</Info>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+## Installation
 
-### Step 2: Deploy your changes
+<Steps>
+  <Step title="Launch the NVIDIA PyTorch container">
+    The NVIDIA Deep Learning Container provides a verified CUDA environment. Use any version from `24.07` through `25.12`.
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```bash
+    sudo docker run \
+      --privileged --net=host --ipc=host \
+      --ulimit memlock=-1:-1 --ulimit stack=-1:-1 \
+      --gpus all --rm -it \
+      nvcr.io/nvidia/pytorch:25.12-py3
+    ```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    <Tip>
+      If your container does not include Flash Attention, install it manually before proceeding:
+      ```bash
+      pip install flash-attn --no-build-isolation
+      ```
+    </Tip>
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Clone the repository and install">
+    ```bash
+    git clone https://github.com/microsoft/VibeVoice.git
+    cd VibeVoice
+    ```
 
-### Step 3: Go live
+    <Tabs>
+      <Tab title="ASR / TTS-1.5B">
+        ```bash
+        pip install -e .
+        ```
+      </Tab>
+      <Tab title="Streaming TTS">
+        The streaming TTS model requires a pinned `transformers` version. Install with the `streamingtts` extra:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+        ```bash
+        pip install -e .[streamingtts]
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
+
+---
+
+## Run your first inference
+
+<Tabs>
+  <Tab title="ASR — transcribe a file">
+    ### Transcribe an audio file
+
+    VibeVoice-ASR processes up to 60 minutes of audio in a single pass and returns structured output with speaker labels, timestamps, and transcribed text.
+
+    <Steps>
+      <Step title="Run the inference script">
+        ```bash
+        python demo/vibevoice_asr_inference_from_file.py \
+          --model_path microsoft/VibeVoice-ASR \
+          --audio_files /path/to/your/audio.wav
+        ```
+
+        The script downloads the 7B model from Hugging Face on first run (~14 GB). Subsequent runs load from the local cache.
+      </Step>
+
+      <Step title="Understand the output">
+        The model produces structured segments — each entry contains a speaker ID, start time, end time, and transcript text:
+
+        ```
+        File: /path/to/your/audio.wav
+        Generation Time: 12.34s
+
+        --- Structured Output (42 segments) ---
+        [0.00 - 2.10] Speaker 0: Welcome to the meeting...
+        [2.40 - 5.80] Speaker 1: Thanks for joining everyone...
+        ```
+      </Step>
+    </Steps>
+
+    ### Use the Python API directly
+
+    <CodeGroup>
+
+    ```python basic inference
+    import torch
+    from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration
+    from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
+
+    MODEL_PATH = "microsoft/VibeVoice-ASR"
+
+    # Load processor and model
+    processor = VibeVoiceASRProcessor.from_pretrained(
+        MODEL_PATH,
+        language_model_pretrained_name="Qwen/Qwen2.5-7B"
+    )
+    model = VibeVoiceASRForConditionalGeneration.from_pretrained(
+        MODEL_PATH,
+        dtype=torch.bfloat16,
+        device_map="cuda",
+        attn_implementation="flash_attention_2",
+        trust_remote_code=True
+    )
+    model.eval()
+
+    # Prepare inputs from an audio file path
+    inputs = processor(
+        audio=["recording.wav"],
+        sampling_rate=None,
+        return_tensors="pt",
+        padding=True,
+        add_generation_prompt=True
+    )
+    inputs = {k: v.to("cuda") if isinstance(v, torch.Tensor) else v
+              for k, v in inputs.items()}
+
+    # Generate transcription
+    with torch.no_grad():
+        output_ids = model.generate(
+            **inputs,
+            max_new_tokens=32768,
+            pad_token_id=processor.pad_id,
+            eos_token_id=processor.tokenizer.eos_token_id,
+            do_sample=False,
+        )
+
+    # Decode and parse structured output
+    input_length = inputs["input_ids"].shape[1]
+    generated_ids = output_ids[0, input_length:]
+    raw_text = processor.decode(generated_ids, skip_special_tokens=True)
+    segments = processor.post_process_transcription(raw_text)
+
+    for seg in segments:
+        print(f"[{seg['start_time']} - {seg['end_time']}] "
+              f"Speaker {seg['speaker_id']}: {seg['text']}")
+    ```
+
+    ```python batch inference
+    import torch
+    from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration
+    from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
+
+    MODEL_PATH = "microsoft/VibeVoice-ASR"
+
+    processor = VibeVoiceASRProcessor.from_pretrained(
+        MODEL_PATH,
+        language_model_pretrained_name="Qwen/Qwen2.5-7B"
+    )
+    model = VibeVoiceASRForConditionalGeneration.from_pretrained(
+        MODEL_PATH,
+        dtype=torch.bfloat16,
+        device_map="cuda",
+        attn_implementation="flash_attention_2",
+        trust_remote_code=True
+    )
+    model.eval()
+
+    # Pass multiple files — they are processed as a batch
+    audio_files = ["meeting_part1.wav", "meeting_part2.wav"]
+
+    inputs = processor(
+        audio=audio_files,
+        sampling_rate=None,
+        return_tensors="pt",
+        padding=True,
+        add_generation_prompt=True
+    )
+    inputs = {k: v.to("cuda") if isinstance(v, torch.Tensor) else v
+              for k, v in inputs.items()}
+
+    with torch.no_grad():
+        output_ids = model.generate(
+            **inputs,
+            max_new_tokens=32768,
+            pad_token_id=processor.pad_id,
+            eos_token_id=processor.tokenizer.eos_token_id,
+            do_sample=False,
+        )
+
+    input_length = inputs["input_ids"].shape[1]
+    for i, audio_file in enumerate(audio_files):
+        generated_ids = output_ids[i, input_length:]
+        raw_text = processor.decode(generated_ids, skip_special_tokens=True)
+        segments = processor.post_process_transcription(raw_text)
+        print(f"\n=== {audio_file} ===")
+        for seg in segments:
+            print(f"[{seg['start_time']} - {seg['end_time']}] "
+                  f"Speaker {seg['speaker_id']}: {seg['text']}")
+    ```
+
+    </CodeGroup>
+
+    <Note>
+      If `flash-attn` is not installed, set `attn_implementation="sdpa"` instead. Flash Attention is recommended for large files to avoid out-of-memory errors.
+    </Note>
+
+    ### Launch the interactive Gradio demo
+
+    For an interactive experience, run the Gradio demo instead:
+
+    ```bash
+    apt update && apt install ffmpeg -y
+    python demo/vibevoice_asr_gradio_demo.py \
+      --model_path microsoft/VibeVoice-ASR \
+      --share
+    ```
+  </Tab>
+
+  <Tab title="Streaming TTS — synthesize speech">
+    ### Synthesize speech from text
+
+    VibeVoice-Realtime-0.5B starts producing audio in ~200 milliseconds and can generate up to 10 minutes of speech from a text file.
+
+    <Steps>
+      <Step title="Prepare your input text file">
+        Create a plain text file with your script. A sample is included in the repo:
+
+        ```
+        demo/text_examples/1p_vibevoice.txt
+        ```
+      </Step>
+
+      <Step title="Run inference from a file">
+        ```bash
+        python demo/realtime_model_inference_from_file.py \
+          --model_path microsoft/VibeVoice-Realtime-0.5B \
+          --txt_path demo/text_examples/1p_vibevoice.txt \
+          --speaker_name Carter
+        ```
+
+        The output WAV file is saved to `./outputs/` by default.
+      </Step>
+
+      <Step title="(Optional) Download additional voices">
+        The model ships with a default set of English voices. To add experimental multilingual speakers (German, French, Italian, Japanese, Korean, Dutch, Polish, Portuguese, Spanish) and 11 English style voices:
+
+        ```bash
+        bash demo/download_experimental_voices.sh
+        ```
+      </Step>
+    </Steps>
+
+    ### Use the Python API directly
+
+    <CodeGroup>
+
+    ```python file-based TTS
+    import copy
+    import torch
+    from vibevoice.modular.modeling_vibevoice_streaming_inference import (
+        VibeVoiceStreamingForConditionalGenerationInference,
+    )
+    from vibevoice.processor.vibevoice_streaming_processor import VibeVoiceStreamingProcessor
+
+    MODEL_PATH = "microsoft/VibeVoice-Realtime-0.5B"
+    VOICE_FILE  = "demo/voices/streaming_model/carter.pt"   # path to a .pt voice preset
+    TEXT        = "Welcome to VibeVoice, the open-source frontier voice AI from Microsoft."
+    OUTPUT_PATH = "./outputs/generated.wav"
+
+    # Load processor and model
+    processor = VibeVoiceStreamingProcessor.from_pretrained(MODEL_PATH)
+    model = VibeVoiceStreamingForConditionalGenerationInference.from_pretrained(
+        MODEL_PATH,
+        torch_dtype=torch.bfloat16,
+        device_map="cuda",
+        attn_implementation="flash_attention_2",
+    )
+    model.eval()
+    model.set_ddpm_inference_steps(num_steps=5)
+
+    # Load cached voice prompt
+    voice_prompt = torch.load(VOICE_FILE, map_location="cuda", weights_only=False)
+
+    # Prepare model inputs
+    inputs = processor.process_input_with_cached_prompt(
+        text=TEXT,
+        cached_prompt=voice_prompt,
+        padding=True,
+        return_tensors="pt",
+        return_attention_mask=True,
+    )
+    inputs = {k: v.to("cuda") if torch.is_tensor(v) else v
+              for k, v in inputs.items()}
+
+    # Generate
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=None,
+        cfg_scale=1.5,
+        tokenizer=processor.tokenizer,
+        generation_config={"do_sample": False},
+        verbose=True,
+        all_prefilled_outputs=copy.deepcopy(voice_prompt),
+    )
+
+    # Save audio
+    import os
+    os.makedirs("./outputs", exist_ok=True)
+    processor.save_audio(outputs.speech_outputs[0], output_path=OUTPUT_PATH)
+    print(f"Saved to {OUTPUT_PATH}")
+    ```
+
+    </CodeGroup>
+
+    ### Launch the real-time WebSocket demo
+
+    ```bash
+    python demo/vibevoice_realtime_demo.py \
+      --model_path microsoft/VibeVoice-Realtime-0.5B
+    ```
+
+    <Note>
+      Real-time performance (RTF ≤ 1) is verified on NVIDIA T4 and Apple M4 Pro. Devices with less compute may require further optimization.
+    </Note>
+
+    <Tip>
+      Try the model instantly on [Google Colab](https://colab.research.google.com/github/microsoft/VibeVoice/blob/main/demo/vibevoice_realtime_colab.ipynb) — no local setup required.
+    </Tip>
+  </Tab>
+</Tabs>
+
+---
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Model overview" icon="table" href="/models/overview">
+    Compare all three VibeVoice models and choose the right one for your use case
+  </Card>
+  <Card title="ASR in depth" icon="microphone" href="/asr/overview">
+    Explore long-form ASR features: diarization, hotwords, vLLM serving, and fine-tuning
+  </Card>
+  <Card title="Streaming TTS" icon="bolt" href="/tts/streaming-overview">
+    Learn about the streaming architecture, available voices, and deployment options
+  </Card>
+  <Card title="Responsible use" icon="shield" href="/reference/responsible-use">
+    Review the risks and limitations before deploying VibeVoice in your application
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

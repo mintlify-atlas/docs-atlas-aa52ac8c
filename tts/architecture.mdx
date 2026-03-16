@@ -1,0 +1,98 @@
+---
+title: "TTS Architecture"
+description: "How VibeVoice-TTS and VibeVoice-Streaming use next-token diffusion with continuous speech tokenizers"
+---
+
+All VibeVoice models share a core architectural innovation: **next-token diffusion** combining a Large Language Model backbone with a diffusion-based acoustic generation head, operating on continuous speech representations at an ultra-low 7.5 Hz frame rate.
+
+## Next-token diffusion framework
+
+Conventional TTS systems generate discrete tokens or waveform samples directly. VibeVoice instead uses a **diffusion head** conditioned on LLM hidden states to predict continuous acoustic latents — capturing fine-grained acoustic detail while maintaining the coherence benefits of autoregressive LLM generation.
+
+The pipeline has three major components:
+
+<CardGroup cols={3}>
+  <Card title="LLM backbone" icon="brain">
+    Qwen2.5-based transformer that understands textual context, dialogue flow, and speaker turns
+  </Card>
+  <Card title="Speech tokenizers" icon="waveform">
+    Continuous acoustic (and semantic) tokenizers compress audio to 7.5 Hz — 1 frame per 133ms
+  </Card>
+  <Card title="Diffusion head" icon="sparkles">
+    Score-matching diffusion network that generates high-fidelity acoustic latents frame by frame
+  </Card>
+</CardGroup>
+
+## Continuous speech tokenizers
+
+Most prior work uses discrete speech tokens at 50–75 Hz. VibeVoice's tokenizers operate at **7.5 Hz**, a 7–10× reduction that:
+
+- Dramatically shortens the sequence length for long-form audio (60–90 min audio becomes manageable within a 64K-token context)
+- Reduces the computational cost of autoregressive generation
+- Preserves audio fidelity through continuous-valued latents rather than discrete codebooks
+
+### Acoustic tokenizer
+
+The acoustic tokenizer captures fine-grained speaker-specific and prosodic features. It operates as a VAE (variational autoencoder) encoding mel-spectrogram features into a continuous latent space.
+
+- Frame rate: **7.5 Hz**
+- VAE latent dimension: **64** (from `acoustic_vae_dim`)
+- Used by: all three VibeVoice models
+
+### Semantic tokenizer (VibeVoice-TTS only)
+
+The full TTS-1.5B model adds a **semantic tokenizer** that captures higher-level linguistic content. This enables richer speaker consistency and language understanding but adds complexity. The streaming model removes the semantic tokenizer to achieve lower latency.
+
+## LLM backbone
+
+Both VibeVoice-TTS and VibeVoice-Streaming use Qwen2.5 as the LLM backbone:
+
+| Model | Base LLM | Parameters | Context |
+|-------|----------|------------|----------|
+| VibeVoice-TTS-1.5B | Qwen2.5-1.5B | 1.5B | 64K tokens |
+| VibeVoice-Realtime-0.5B | Qwen2.5-0.5B | 0.5B | 8K tokens |
+
+The decoder layers are split into two groups (configured via `tts_backbone_num_hidden_layers = 20`):
+- **Lower layers**: encode text context only
+- **Upper layers**: encode text and generate speech token predictions
+
+This split allows efficient text encoding to be cached and reused across streaming chunks.
+
+## Diffusion head
+
+Instead of predicting a single deterministic acoustic token, the diffusion head runs a **denoising diffusion probabilistic model (DDPM)** over the acoustic latent space at each frame position. Key properties:
+
+- Conditioned on LLM hidden states from the upper backbone layers
+- Number of DDPM inference steps is configurable (`ddpm_inference_steps`) — more steps = higher quality, slower generation
+- Classifier-free guidance scale (`cfg_scale`) controls how strongly generation follows the text conditioning
+
+## Streaming architecture (VibeVoice-Realtime)
+
+The streaming model uses an **interleaved windowed design** that enables real-time generation:
+
+```
+Text chunks → LLM encode → Diffusion generate → Acoustic decode → Audio chunks
+     ↑                              ↑
+  Incoming                   Prior context
+  streaming                  continues in
+    text                     parallel
+```
+
+1. Incoming text is encoded in incremental chunks
+2. The diffusion head continues generating from prior context in parallel
+3. Acoustic latents are decoded to audio chunks and streamed out
+4. The model detects EOS (end-of-speech) tokens to terminate generation
+
+This pipeline delivers **~200ms first-audio latency** — the model starts speaking before the full text input is available, enabling seamless LLM-to-speech pipelines.
+
+## Comparison: TTS-1.5B vs Realtime-0.5B
+
+| Aspect | VibeVoice-TTS-1.5B | VibeVoice-Realtime-0.5B |
+|--------|--------------------|--------------------------|
+| Parameters | 1.5B | 0.5B |
+| Tokenizers | Acoustic + Semantic | Acoustic only |
+| Context | 64K (≈90 min) | 8K (≈10 min) |
+| Speakers | Up to 4 | Single speaker |
+| Latency | Batch | ~200ms streaming |
+| Languages | English, Chinese | English (experimental others) |
+| Status | Code disabled | Available |

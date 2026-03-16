@@ -1,0 +1,71 @@
+---
+title: "VibeVoice-TTS"
+description: "Long-form multi-speaker text-to-speech — synthesize up to 90 minutes with 4 distinct speakers"
+---
+
+<Warning>
+  The VibeVoice-TTS inference code has been **disabled** from this repository due to widespread misuse discovered after release. The model weights remain available on Hugging Face for research purposes, but installation and usage scripts are not provided. See [Responsible Use](/reference/responsible-use) for more context.
+</Warning>
+
+**VibeVoice-TTS** is a long-form, multi-speaker text-to-speech model designed to generate expressive conversational audio such as podcasts from text. It synthesizes speech up to **90 minutes** long with up to **4 distinct speakers**, surpassing the typical 1–2 speaker limits of most prior models.
+
+<CardGroup cols={2}>
+  <Card title="HuggingFace" icon="circle" href="https://huggingface.co/microsoft/VibeVoice-1.5B">
+    Model weights for VibeVoice-1.5B
+  </Card>
+  <Card title="Technical Report" icon="file-pdf" href="https://arxiv.org/pdf/2508.19205">
+    Next-token diffusion architecture paper
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/tts/architecture">
+    How the model works
+  </Card>
+  <Card title="Tips and FAQ" icon="circle-question" href="/tts/tips-and-faq">
+    Common questions and usage tips
+  </Card>
+</CardGroup>
+
+## Model variants
+
+| Model | Context Length | Generation Length | Status |
+|-------|----------------|-------------------|---------|
+| VibeVoice-1.5B | 64K tokens | ~90 min | Weights available, code disabled |
+| VibeVoice-Large | 32K tokens | ~45 min | Disabled |
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="90-minute generation" icon="timer">
+    Synthesizes conversational or single-speaker speech up to 90 minutes in a single pass, maintaining speaker consistency and semantic coherence throughout
+  </Card>
+  <Card title="Multi-speaker support" icon="users">
+    Supports up to 4 distinct speakers in a single conversation with natural turn-taking and consistent speaker identity across long dialogues
+  </Card>
+  <Card title="Expressive speech" icon="waveform-lines">
+    Generates expressive, natural-sounding speech that captures conversational dynamics and emotional nuances
+  </Card>
+  <Card title="Multilingual" icon="globe">
+    Supports English and Chinese as primary languages, with some cross-lingual transfer capability
+  </Card>
+</CardGroup>
+
+## Capabilities
+
+VibeVoice-TTS is particularly well-suited for:
+
+- **Podcast generation** — multi-turn conversations between up to 4 speakers
+- **Audiobook narration** — long-form single-speaker speech with consistent voice
+- **Conversational AI** — expressive dialogue synthesis
+- **Cross-lingual content** — English/Chinese with accent preservation
+
+<Note>
+  VibeVoice-TTS is a **pretrained model** without post-training or benchmark-specific optimizations. This makes it versatile and capable of emergent behaviors (including spontaneous background music and even singing), but also means outputs can be unpredictable.
+</Note>
+
+## Limitations
+
+- Code and usage instructions are currently disabled
+- English and Chinese only — other languages may produce unexpected outputs
+- Does not model overlapping speech segments
+- Not intended for commercial use without further testing
+
+For real-time TTS that is actively maintained, see [VibeVoice-Streaming](/tts/streaming-overview).

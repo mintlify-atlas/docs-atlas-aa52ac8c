@@ -1,0 +1,101 @@
+---
+title: "VibeVoice-ASR overview"
+description: "A unified speech-to-text model that processes 60-minute audio in a single pass, with speaker diarization, timestamps, hotword support, and 50+ language coverage."
+---
+
+<CardGroup cols={2}>
+  <Card title="HuggingFace model" icon="face-smiling" href="https://huggingface.co/microsoft/VibeVoice-ASR">
+    Download VibeVoice-ASR-7B weights and model card
+  </Card>
+  <Card title="Live playground" icon="play" href="https://aka.ms/vibevoice-asr">
+    Try transcription in your browser — no setup required
+  </Card>
+  <Card title="Technical report" icon="file-lines" href="https://arxiv.org/pdf/2601.18184">
+    Read the VibeVoice-ASR arXiv paper
+  </Card>
+  <Card title="Installation" icon="download" href="/asr/installation">
+    Set up the model on your own GPU
+  </Card>
+</CardGroup>
+
+## What is VibeVoice-ASR?
+
+**VibeVoice-ASR** is a unified speech-to-text model (7B parameters) designed to handle **60-minute long-form audio in a single pass**. Rather than slicing audio into short chunks like most conventional ASR systems, it encodes the entire recording within a 64K-token context window, preserving global speaker tracking and semantic coherence across the full hour.
+
+The model jointly performs transcription, speaker diarization, and timestamping in one forward pass, producing a structured JSON output that answers **Who** spoke, **When** they spoke, and **What** they said.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="60-minute single-pass processing" icon="clock">
+    Accepts up to 60 minutes of continuous audio within a 64K token context. No chunking means no lost cross-segment context and consistent speaker identity throughout.
+  </Card>
+  <Card title="Rich transcription (Who, When, What)" icon="list">
+    Jointly performs ASR, speaker diarization, and timestamping. Each output segment includes a speaker label, start/end timestamps, and the transcribed text.
+  </Card>
+  <Card title="Customized hotwords" icon="tag">
+    Provide names, technical terms, or domain-specific context at inference time to guide the recognition process and improve accuracy on specialized content.
+  </Card>
+  <Card title="50+ language support" icon="globe">
+    Natively multilingual — no explicit language configuration required. Handles code-switching within and across utterances. See the [language distribution](#language-distribution) section below.
+  </Card>
+</CardGroup>
+
+## Architecture overview
+
+VibeVoice-ASR is built on a multimodal LLM backbone derived from **Qwen2.5-7B**. Speech is encoded through two parallel tokenizers:
+
+- **Acoustic tokenizer** — captures low-level audio fidelity at 7.5 Hz frame rate
+- **Semantic tokenizer** — captures high-level linguistic content
+
+The outputs of both tokenizers are projected into the language model's embedding space via lightweight `SpeechConnector` modules. The language model then autoregressively generates structured JSON transcriptions directly, with no separate decoding stage.
+
+The model supports Flash Attention 2, SDPA, and eager attention backends, and loads in `bfloat16` by default.
+
+## Output format
+
+The model produces a JSON array where each element represents one speaker turn:
+
+```json
+[
+  {
+    "speaker_id": 0,
+    "start_time": 0.0,
+    "end_time": 4.32,
+    "text": "Welcome everyone to today's meeting."
+  },
+  {
+    "speaker_id": 1,
+    "start_time": 4.85,
+    "end_time": 9.10,
+    "text": "Thanks for having me. Let's get started."
+  }
+]
+```
+
+## Language distribution
+
+VibeVoice-ASR supports over 50 languages without any explicit language flag. The training data distribution covers major world languages including English, Chinese, French, German, Italian, Japanese, Korean, Portuguese, Russian, Spanish, Thai, Vietnamese, and many more.
+
+Code-switching — mixing two languages within a single utterance — is handled natively. The model detects and transcribes language transitions without any configuration.
+
+<Note>
+  You do not need to specify a language before transcribing. The model auto-detects the language from the audio signal.
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="wrench" href="/asr/installation">
+    Install dependencies and set up the NVIDIA container environment
+  </Card>
+  <Card title="Usage" icon="terminal" href="/asr/usage">
+    Run the Gradio demo or perform file-based batch inference
+  </Card>
+  <Card title="Evaluation" icon="chart-bar" href="/asr/evaluation">
+    Benchmark results across DER, cpWER, tcpWER, and WER metrics
+  </Card>
+  <Card title="Fine-tuning" icon="sliders" href="/asr/finetuning">
+    Adapt VibeVoice-ASR to your domain using LoRA
+  </Card>
+</CardGroup>

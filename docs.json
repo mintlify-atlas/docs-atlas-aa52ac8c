@@ -1,122 +1,117 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "VibeVoice",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#646464",
+    "light": "#cdcdcd",
+    "dark": "#646464"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/51c27512-8c59-4771-8f4e-451e5a65f555.jpg",
+  "logo": {
+    "light": "https://media.brand.dev/51c27512-8c59-4771-8f4e-451e5a65f555.jpg",
+    "dark": "https://media.brand.dev/51c27512-8c59-4771-8f4e-451e5a65f555.jpg"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/microsoft/VibeVoice"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/microsoft/VibeVoice"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Overview",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Models",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
-          },
-          {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "models/overview"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "ASR",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "VibeVoice-ASR",
             "pages": [
-              "api-reference/introduction"
+              "asr/overview",
+              "asr/installation",
+              "asr/usage",
+              "asr/evaluation"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Fine-tuning",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "asr/finetuning",
+              "asr/finetuning-inference"
+            ]
+          },
+          {
+            "group": "vLLM Deployment",
+            "pages": [
+              "asr/vllm-deployment",
+              "asr/vllm-troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "TTS",
+        "groups": [
+          {
+            "group": "VibeVoice-TTS",
+            "pages": [
+              "tts/overview",
+              "tts/architecture",
+              "tts/tips-and-faq"
+            ]
+          },
+          {
+            "group": "VibeVoice-Streaming",
+            "pages": [
+              "tts/streaming-overview",
+              "tts/streaming-installation",
+              "tts/streaming-usage"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Python API",
+            "pages": [
+              "reference/python-api",
+              "reference/processor",
+              "reference/streaming-inference"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "reference/responsible-use",
+              "reference/contributing"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

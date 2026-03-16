@@ -1,0 +1,103 @@
+---
+title: "Inference with a fine-tuned model"
+description: "Run transcription with a LoRA-adapted VibeVoice-ASR model, and optionally merge adapter weights into the base model for faster inference."
+---
+
+After fine-tuning you have a LoRA adapter saved to `--output_dir`. You can run inference by loading the adapter on top of the base model, or merge the adapter weights permanently for lower inference latency.
+
+## Running inference with the LoRA adapter
+
+Use `inference_lora.py` from the `finetuning-asr/` directory:
+
+```bash
+python inference_lora.py \
+    --base_model microsoft/VibeVoice-ASR \
+    --lora_path ./output \
+    --audio_file ./toy_dataset/0.mp3 \
+    --context_info "Tea Brew, Aiden Host"
+```
+
+### Inference arguments
+
+| Argument | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `--base_model` | No | `microsoft/VibeVoice-ASR` | HuggingFace model ID or local path to the base model |
+| `--lora_path` | Yes | — | Path to the directory containing the saved LoRA adapter |
+| `--audio_file` | Yes | — | Path to the audio file to transcribe |
+| `--context_info` | No | None | Optional context string, e.g. hotwords or domain terms |
+| `--max_new_tokens` | No | `4096` | Maximum tokens to generate |
+| `--temperature` | No | `0.0` | Sampling temperature — `0` uses greedy decoding |
+| `--device` | No | `cuda` if available, else `cpu` | Device to run inference on |
+
+### Output format
+
+The script prints a raw text output followed by a structured segment list:
+
+```
+============================================================
+Transcription Result
+============================================================
+
+--- Raw Output ---
+...
+
+--- Structured Output (N segments) ---
+[0.0 - 38.68] Speaker 0: Hey everyone, welcome back...
+[38.75 - 77.88] Speaker 1: Thanks for having me...
+```
+
+Each segment includes `start_time`, `end_time`, `speaker_id`, and `text` fields produced by `processor.post_process_transcription`.
+
+## Merging LoRA weights into the base model
+
+Loading a LoRA adapter adds a small overhead on every forward pass. Merging the adapter weights permanently into the base model eliminates this overhead and produces a standalone model checkpoint.
+
+<CodeGroup>
+
+```python merge_lora.py
+from peft import PeftModel
+from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration
+
+# Load base model + LoRA adapter
+model = VibeVoiceASRForConditionalGeneration.from_pretrained(
+    "microsoft/VibeVoice-ASR",
+    # ... your load kwargs (dtype, device_map, etc.)
+)
+model = PeftModel.from_pretrained(model, "./output")
+
+# Merge adapter weights and drop the LoRA overhead
+model = model.merge_and_unload()
+model.save_pretrained("./merged_model")
+```
+
+```bash run inference on merged model
+python inference_lora.py \
+    --base_model ./merged_model \
+    --lora_path ./merged_model \
+    --audio_file ./audio.mp3
+```
+
+</CodeGroup>
+
+<Note>
+  After merging, pass the merged model directory as both `--base_model` and `--lora_path`. PEFT will detect that the weights are already merged and skip the adapter loading step.
+</Note>
+
+## Hyperparameter guidance
+
+LoRA fine-tuning results depend heavily on dataset size and domain distance from the base model's training data.
+
+| Dataset size | Suggested `lora_r` | Suggested learning rate | Notes |
+|---|---|---|---|
+| < 1 hour | `8` | `1e-4` | Small rank reduces overfitting risk |
+| 1–10 hours | `16` | `1e-4` | Default settings work well |
+| 10–100 hours | `32` | `5e-5` | More capacity; watch for overfitting |
+| > 100 hours | `64` | `2e-5` | Consider full fine-tuning instead |
+
+<Tip>
+  Set `--lora_alpha` to 2× `--lora_r` as a starting point (e.g. `r=16, alpha=32`). Increase `--lora_dropout` to `0.1` if you observe overfitting on a small dataset.
+</Tip>
+
+<Warning>
+  The toy dataset ships with synthetic audio produced by VibeVoice-TTS. Do not evaluate domain adaptation quality using synthetic data — use held-out real recordings.
+</Warning>

@@ -1,0 +1,103 @@
+---
+title: "vLLM troubleshooting"
+description: "Diagnose and fix common issues when deploying VibeVoice-ASR with vLLM, including GPU memory errors, audio decoding failures, and plugin loading problems."
+---
+
+If the vLLM server fails to start or returns errors during transcription, work through the relevant section below.
+
+<AccordionGroup>
+  <Accordion title="CUDA out of memory">
+    The vLLM server reserves GPU memory for the KV-cache at startup. If the reservation fails, the process crashes before the first request.
+
+    **Symptoms**: `torch.cuda.OutOfMemoryError` or `CUDA out of memory` in `docker logs -f vibevoice-vllm`.
+
+    **Solutions**:
+
+    1. Reduce GPU memory utilization:
+       ```bash
+       --gpu-memory-utilization 0.85
+       ```
+
+    2. Reduce the maximum number of concurrent sequences:
+       ```bash
+       --max-num-seqs 16
+       ```
+
+    3. Reduce the maximum sequence length:
+       ```bash
+       --max-model-len 4096
+       ```
+
+    Apply these flags in the `start_server.py` script or by passing them to the `vllm serve` command.
+  </Accordion>
+
+  <Accordion title="Audio decoding failed">
+    VibeVoice uses FFmpeg for audio decoding across all supported formats (MP3, WAV, FLAC, M4A, and others). If FFmpeg is missing or the audio format is unsupported, transcription requests will fail.
+
+    **Symptoms**: `Audio decoding failed` error in the API response.
+
+    **Solutions**:
+
+    1. Verify FFmpeg is available inside the container:
+       ```bash
+       docker exec -it vibevoice-vllm ffmpeg -version
+       ```
+       The official `vllm/vllm-openai` image ships FFmpeg. If you are using a custom image, install it:
+       ```bash
+       apt-get install -y ffmpeg
+       ```
+
+    2. Confirm the audio file path is accessible inside the container. Files must be inside the mounted directory (`/app` when using the default `docker run` command).
+
+    3. Check the audio file is not corrupted:
+       ```bash
+       docker exec -it vibevoice-vllm ffprobe /app/audio.wav
+       ```
+  </Accordion>
+
+  <Accordion title="Model not found">
+    vLLM cannot locate the model weights or configuration at startup.
+
+    **Symptoms**: `Model not found`, `No such file or directory`, or a missing `config.json` error in the startup logs.
+
+    **Solutions**:
+
+    1. Verify the model directory contains `config.json` and the model weight shards:
+       ```bash
+       ls ~/.cache/huggingface/hub/models--microsoft--VibeVoice-ASR/snapshots/
+       ```
+
+    2. If `config.json` is present but the `architectures` field does not contain `"VibeVoice"`, regenerate it:
+       ```python
+       from vibevoice.modular.configuration_vibevoice import VibeVoiceConfig
+       config = VibeVoiceConfig.from_pretrained("microsoft/VibeVoice-ASR")
+       config.save_pretrained("./local-model")
+       ```
+
+    3. Confirm the model path passed to the server matches the actual location on disk.
+  </Accordion>
+
+  <Accordion title="Plugin not loaded">
+    If the VibeVoice vLLM plugin is not registered, vLLM will fail to find the `VibeVoice` architecture and refuse to load the model.
+
+    **Symptoms**: `ValueError: Model architectures ['VibeVoice'] are not supported` in the startup logs.
+
+    **Solutions**:
+
+    1. Verify `vibevoice` is installed in the Python environment used by vLLM:
+       ```bash
+       docker exec -it vibevoice-vllm pip show vibevoice
+       ```
+
+    2. Confirm the entry point is registered:
+       ```bash
+       docker exec -it vibevoice-vllm pip show -f vibevoice | grep entry
+       ```
+       You should see a line referencing `vllm.general_plugins`.
+
+    3. If the package is installed but the entry point is missing, reinstall from the repository root inside the container:
+       ```bash
+       docker exec -it vibevoice-vllm pip install -e /app
+       ```
+  </Accordion>
+</AccordionGroup>

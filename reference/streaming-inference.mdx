@@ -1,0 +1,217 @@
+---
+title: Streaming inference
+description: How the VibeVoice-Realtime streaming TTS pipeline works end-to-end, with configuration options and complete usage examples.
+---
+
+VibeVoice-Realtime-0.5B generates speech in real time by interleaving windowed text prefill with diffusion-based speech sampling. Audio is available almost immediately — before the full text is processed — because the model processes text and generates speech in overlapping windows.
+
+## How the pipeline works
+
+<Steps>
+  <Step title="Prepare the processor">
+    Load `VibeVoiceStreamingProcessor` from the model checkpoint. The processor wraps the text tokenizer and audio feature extractor.
+
+    ```python
+    from vibevoice import VibeVoiceStreamingProcessor
+
+    processor = VibeVoiceStreamingProcessor.from_pretrained(
+        "microsoft/VibeVoice-Realtime-0.5B"
+    )
+    ```
+  </Step>
+  <Step title="Load the model">
+    Load with `AutoModelForCausalLM` — `VibeVoiceStreamingForConditionalGenerationInference` is registered automatically.
+
+    ```python
+    from transformers import AutoModelForCausalLM
+    import torch
+
+    model = AutoModelForCausalLM.from_pretrained(
+        "microsoft/VibeVoice-Realtime-0.5B",
+        trust_remote_code=True,
+        torch_dtype=torch.float16,
+    ).to("cuda")
+    model.eval()
+    ```
+  </Step>
+  <Step title="Encode your text">
+    Use `process_input_with_cached_prompt` to encode the script against a cached voice prompt.
+
+    ```python
+    inputs = processor.process_input_with_cached_prompt(
+        text="Good morning. How can I help you today?",
+        cached_prompt=cached_prompt,
+        return_tensors="pt",
+    )
+    inputs = {k: v.to("cuda") for k, v in inputs.items() if v is not None}
+    ```
+  </Step>
+  <Step title="Set up a streamer">
+    Create an `AudioStreamer` to receive audio chunks during generation.
+
+    ```python
+    from vibevoice.modular import AudioStreamer
+
+    streamer = AudioStreamer(batch_size=1, timeout=30.0)
+    ```
+  </Step>
+  <Step title="Run generate in a background thread">
+    `generate` is blocking. Run it in a thread so the main thread can consume audio chunks as they arrive.
+
+    ```python
+    import threading
+
+    def run_generate():
+        model.generate(
+            inputs=inputs["input_ids"],
+            tts_text_ids=inputs["tts_text_ids"],
+            audio_streamer=streamer,
+            cfg_scale=3.0,
+            tokenizer=processor.tokenizer,
+            **{k: v for k, v in inputs.items()
+               if k not in ("input_ids", "tts_text_ids")},
+        )
+
+    thread = threading.Thread(target=run_generate, daemon=True)
+    thread.start()
+    ```
+  </Step>
+  <Step title="Consume audio chunks">
+    Iterate the streamer's stream for sample 0. Each chunk is a CPU `torch.Tensor`.
+
+    ```python
+    audio_chunks = []
+    for chunk in streamer.get_stream(sample_idx=0):
+        audio_chunks.append(chunk)
+        # Play or buffer chunk in real time
+
+    thread.join()
+
+    # Save the full result
+    import torch
+    full_audio = torch.cat(audio_chunks, dim=-1)
+    processor.save_audio(full_audio, output_path="output.wav")
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Async usage
+
+Use `AsyncAudioStreamer` in async contexts such as FastAPI or aiohttp. The streamer must be instantiated inside a running event loop.
+
+```python
+import asyncio
+import threading
+from vibevoice.modular import AsyncAudioStreamer
+
+async def stream_tts(text: str):
+    streamer = AsyncAudioStreamer(batch_size=1, timeout=30.0)
+
+    inputs = processor.process_input_with_cached_prompt(
+        text=text,
+        cached_prompt=cached_prompt,
+        return_tensors="pt",
+    )
+    inputs = {k: v.to("cuda") for k, v in inputs.items() if v is not None}
+
+    def run():
+        model.generate(
+            inputs=inputs["input_ids"],
+            tts_text_ids=inputs["tts_text_ids"],
+            audio_streamer=streamer,
+            cfg_scale=3.0,
+            tokenizer=processor.tokenizer,
+            **{k: v for k, v in inputs.items()
+               if k not in ("input_ids", "tts_text_ids")},
+        )
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+
+    async for chunk in streamer.get_stream(sample_idx=0):
+        yield chunk.numpy()  # send to WebSocket, write to buffer, etc.
+
+    thread.join()
+```
+
+---
+
+## Generation internals
+
+The `generate` method runs a windowed loop:
+
+1. **Text prefill** — feeds the next `TTS_TEXT_WINDOW_SIZE` (5) text tokens through the base LM (`forward_lm`), then passes the resulting hidden states to the TTS LM (`forward_tts_lm`).
+2. **Speech generation** — for each text window, samples `TTS_SPEECH_WINDOW_SIZE` (6) speech latent frames via DDPM diffusion (`sample_speech_tokens`). Classifier-free guidance with `cfg_scale` is applied at each diffusion step.
+3. **Acoustic decoding** — each speech latent is decoded to a waveform chunk by the acoustic tokenizer using an internal streaming cache.
+4. **EOS detection** — after each speech frame, the binary EOS classifier checks whether generation should stop.
+5. **Streaming** — if `audio_streamer` is provided, each decoded chunk is pushed to the streamer via `audio_streamer.put()` immediately after decoding.
+
+<Info>
+  The model currently supports `batch_size == 1` only.
+</Info>
+
+---
+
+## Configuration reference
+
+Key parameters that affect streaming inference behavior:
+
+<AccordionGroup>
+  <Accordion title="cfg_scale — classifier-free guidance scale">
+    Passed to `generate`. Controls how strongly speech generation is guided by the text condition.
+
+    - `1.0` — minimal guidance (unconditioned + conditioned averaged equally)
+    - `3.0` — moderate guidance (default recommended value)
+    - Higher values produce more condition-adherent but potentially less natural speech
+
+    ```python
+    model.generate(..., cfg_scale=3.0)
+    ```
+  </Accordion>
+  <Accordion title="ddpm_inference_steps — diffusion sampling steps">
+    Set in `VibeVoiceStreamingConfig.diffusion_head_config.ddpm_num_inference_steps`, or overridden at runtime:
+
+    ```python
+    model.set_ddpm_inference_steps(num_steps=10)
+    ```
+
+    Fewer steps reduce latency; more steps can improve quality. 10–20 is typical for real-time use.
+  </Accordion>
+  <Accordion title="tts_backbone_num_hidden_layers — TTS LM depth">
+    Configured in `VibeVoiceStreamingConfig`. Determines how many upper decoder layers participate in TTS generation.
+
+    ```python
+    config = VibeVoiceStreamingConfig(tts_backbone_num_hidden_layers=20)
+    ```
+  </Accordion>
+  <Accordion title="stop_check_fn — external stop hook">
+    An optional callable you can pass to `generate` to stop generation early from outside the loop, for example based on a user interrupt signal.
+
+    ```python
+    stop_event = threading.Event()
+
+    model.generate(
+        ...,
+        stop_check_fn=lambda: stop_event.is_set(),
+    )
+
+    # From another thread:
+    stop_event.set()
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## AudioStreamer vs AsyncAudioStreamer
+
+| | `AudioStreamer` | `AsyncAudioStreamer` |
+|---|---|---|
+| Queue type | `queue.Queue` | `asyncio.Queue` |
+| Consume API | `for chunk in streamer.get_stream(0)` | `async for chunk in streamer.get_stream(0)` |
+| Use case | Scripts, synchronous servers | async frameworks (FastAPI, aiohttp) |
+| Instantiation | Anywhere | Inside a running event loop |
+
+Both share the same `put(audio_chunks, sample_indices)` and `end(sample_indices)` interface used internally by `generate`.

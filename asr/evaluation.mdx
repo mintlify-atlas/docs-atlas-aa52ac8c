@@ -1,0 +1,91 @@
+---
+title: "Evaluation"
+description: "Benchmark results for VibeVoice-ASR across speaker diarization (DER), word error rate (WER), and concatenated minimum-permutation WER metrics."
+---
+
+## Metrics
+
+| Metric | Description |
+|--------|-------------|
+| **DER** | Diarization Error Rate — measures accuracy of speaker assignment |
+| **cpWER** | Concatenated minimum-Permutation Word Error Rate — WER after optimal speaker-permutation alignment |
+| **tcpWER** | Time-constrained cpWER — cpWER with time boundary constraints applied |
+| **WER** | Word Error Rate — standard transcription accuracy metric |
+
+<Note>
+  Lower is better for all four metrics. DER, cpWER, and tcpWER jointly evaluate both transcription accuracy and speaker assignment; WER measures transcription accuracy alone.
+</Note>
+
+## Multilingual results (MLC-Challenge)
+
+Results on the [MLC-Challenge](https://arxiv.org/pdf/2601.18184) benchmark, which covers 11 languages in conversational, multi-speaker settings.
+
+| Dataset | Language | DER | cpWER | tcpWER | WER |
+|---------|----------|-----|-------|--------|-----|
+| MLC-Challenge | English | 4.28 | 11.48 | 13.02 | 7.99 |
+| MLC-Challenge | French | 3.80 | 18.80 | 19.64 | 15.21 |
+| MLC-Challenge | German | 1.04 | 17.10 | 17.26 | 16.30 |
+| MLC-Challenge | Italian | 2.08 | 15.76 | 15.91 | 13.91 |
+| MLC-Challenge | Japanese | 0.82 | 15.33 | 15.41 | 14.69 |
+| MLC-Challenge | Korean | 4.52 | 15.35 | 16.07 | 9.65 |
+| MLC-Challenge | Portuguese | 7.98 | 29.91 | 31.65 | 21.54 |
+| MLC-Challenge | Russian | 0.90 | 12.94 | 12.98 | 12.40 |
+| MLC-Challenge | Spanish | 2.67 | 10.51 | 11.71 | 8.04 |
+| MLC-Challenge | Thai | 4.09 | 14.91 | 15.57 | 13.61 |
+| MLC-Challenge | Vietnamese | 0.16 | 14.57 | 14.57 | 14.43 |
+| **MLC-Challenge** | **Average** | **3.42** | **14.81** | **15.66** | **12.07** |
+
+## Standard benchmark results
+
+Results on established English and Chinese meeting transcription benchmarks.
+
+| Dataset | Language | DER | cpWER | tcpWER | WER |
+|---------|----------|-----|-------|--------|-----|
+| AISHELL-4 | Chinese | 6.77 | 24.99 | 25.35 | 21.40 |
+| AMI-IHM | English | 11.92 | 20.41 | 20.82 | 18.81 |
+| AMI-SDM | English | 13.43 | 28.82 | 29.80 | 24.65 |
+| AliMeeting | Chinese | 10.92 | 29.33 | 29.51 | 27.40 |
+
+<Note>
+  **AMI-IHM** uses individual headset microphones (close-talk). **AMI-SDM** uses a single distant microphone, which is a significantly harder acoustic condition — the higher DER and WER on SDM vs IHM reflects this difficulty.
+</Note>
+
+### Benchmark descriptions
+
+| Benchmark | Description |
+|-----------|-------------|
+| **AISHELL-4** | 8-channel Mandarin meeting corpus, 120 hours of boardroom recordings |
+| **AMI-IHM** | English meeting corpus, individual headset microphone condition |
+| **AMI-SDM** | English meeting corpus, single distant microphone condition |
+| **AliMeeting** | Mandarin meeting corpus collected by Alibaba |
+| **MLC-Challenge** | Multilingual conversational speech challenge across 11 languages |
+
+## Language distribution
+
+VibeVoice-ASR covers **50+ languages** without requiring an explicit language flag at inference time. The model auto-detects the input language and handles code-switching natively.
+
+Represented language families in the training distribution include:
+
+- **Germanic**: English, German, Dutch
+- **Romance**: French, Spanish, Italian, Portuguese
+- **Sino-Tibetan**: Mandarin Chinese (Simplified and Traditional)
+- **Japonic**: Japanese
+- **Koreanic**: Korean
+- **Slavic**: Russian, Polish
+- **Tai-Kadai**: Thai
+- **Austroasiatic**: Vietnamese
+- And many more across Asia, Europe, and beyond
+
+<Note>
+  Language distribution details and the full list of supported languages are available in the [VibeVoice-ASR technical report](https://arxiv.org/pdf/2601.18184).
+</Note>
+
+## Interpreting results
+
+- **DER** below 5% is generally considered strong performance for conversational meeting scenarios with 2–4 speakers.
+- **WER** in the 8–15% range on multi-speaker, spontaneous speech is competitive with purpose-built ASR systems that do not perform diarization.
+- The **tcpWER** metric penalizes both transcription errors and timestamp inaccuracies, making it the most demanding of the three WER variants.
+
+<Tip>
+  For domain-specific use cases with technical vocabulary or uncommon proper nouns, use the [hotwords feature](/asr/usage#using-hotwords) to improve WER on out-of-vocabulary terms.
+</Tip>

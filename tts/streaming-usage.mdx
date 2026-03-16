@@ -1,0 +1,112 @@
+---
+title: "Streaming TTS Usage"
+description: "Run real-time WebSocket demos and file inference with VibeVoice-Realtime-0.5B"
+---
+
+## Available speakers
+
+VibeVoice-Realtime-0.5B includes built-in embedded voice prompts. The default speaker is **Carter**. Additional experimental multilingual speakers can be downloaded with:
+
+```bash
+bash demo/download_experimental_voices.sh
+```
+
+Experimental languages available: German, French, Italian, Japanese, Korean, Dutch, Polish, Portuguese, Spanish.
+
+<Note>
+  Voice customization beyond the provided speakers is not available without contacting the VibeVoice team. The embedded format is used to minimize deepfake risks while maintaining low latency.
+</Note>
+
+## Usage modes
+
+<Tabs>
+  <Tab title="Real-time WebSocket demo">
+    Launch a WebSocket server that streams audio in real time as text is sent:
+
+    ```bash
+    python demo/vibevoice_realtime_demo.py --model_path microsoft/VibeVoice-Realtime-0.5B
+    ```
+
+    The model will be downloaded automatically from Hugging Face on first run.
+
+    <Note>
+      Due to network latency, the time when audio playback is heard may exceed the ~200ms first speech chunk generation latency.
+    </Note>
+
+    **Verified hardware for real-time performance:**
+    - NVIDIA T4
+    - Apple Mac M4 Pro
+
+    Other devices may require further speed optimization.
+  </Tab>
+
+  <Tab title="Inference from file">
+    Run inference on a text file and save audio output:
+
+    ```bash
+    # Using the Carter voice (default)
+    python demo/realtime_model_inference_from_file.py \
+      --model_path microsoft/VibeVoice-Realtime-0.5B \
+      --txt_path demo/text_examples/1p_vibevoice.txt \
+      --speaker_name Carter
+    ```
+
+    Example text files are provided under `demo/text_examples/` for quick testing.
+
+    To use an experimental multilingual voice, first download them:
+    ```bash
+    bash demo/download_experimental_voices.sh
+    # Then specify the language voice
+    python demo/realtime_model_inference_from_file.py \
+      --model_path microsoft/VibeVoice-Realtime-0.5B \
+      --txt_path demo/text_examples/1p_vibevoice.txt \
+      --speaker_name de_speaker
+    ```
+  </Tab>
+
+  <Tab title="Colab">
+    The easiest way to try VibeVoice-Realtime without setting up a local environment:
+
+    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/microsoft/VibeVoice/blob/main/demo/vibevoice_realtime_colab.ipynb)
+
+    The Colab notebook includes the full environment setup and an interactive demo.
+  </Tab>
+</Tabs>
+
+## Python API
+
+For programmatic use, the streaming inference pipeline is accessible via the `vibevoice` package:
+
+```python
+from vibevoice import (
+    VibeVoiceStreamingForConditionalGenerationInference,
+    VibeVoiceStreamingConfig,
+    VibeVoiceStreamingProcessor,
+)
+
+# Load model and processor
+model = VibeVoiceStreamingForConditionalGenerationInference.from_pretrained(
+    "microsoft/VibeVoice-Realtime-0.5B"
+)
+processor = VibeVoiceStreamingProcessor.from_pretrained(
+    "microsoft/VibeVoice-Realtime-0.5B"
+)
+
+# Process input text
+inputs = processor(text="Hello, this is a streaming TTS test.", speaker_name="Carter")
+
+# Generate audio
+output = model.generate(**inputs)
+```
+
+See the [Python API reference](/reference/python-api) and [Streaming Inference guide](/reference/streaming-inference) for full API documentation.
+
+## Input guidelines
+
+| Input type | Recommendation |
+|------------|----------------|
+| Normal prose | Works well |
+| Short inputs (≤3 words) | May produce unstable output |
+| Code / formulas | Pre-process to remove or normalize |
+| Uncommon symbols | Normalize to plain text |
+| Non-English text | Use experimental voices; results may vary |

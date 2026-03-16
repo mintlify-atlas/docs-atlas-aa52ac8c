@@ -1,0 +1,99 @@
+---
+title: "Installation"
+description: "Set up VibeVoice-ASR on an NVIDIA GPU using the NVIDIA PyTorch container and install from the GitHub repository."
+---
+
+<Info>
+  VibeVoice-ASR-7B requires an NVIDIA GPU with sufficient VRAM to run in `bfloat16`. A single A100 80GB or equivalent is recommended for production use.
+</Info>
+
+<Steps>
+  <Step title="Launch the NVIDIA PyTorch container">
+    The recommended environment is the **NVIDIA Deep Learning Container**, which bundles a verified CUDA toolkit, cuDNN, and PyTorch.
+
+    ```bash
+    # NVIDIA PyTorch Container 24.07 – 25.12 verified. Earlier versions are also compatible.
+    sudo docker run \
+      --privileged \
+      --net=host \
+      --ipc=host \
+      --ulimit memlock=-1:-1 \
+      --ulimit stack=-1:-1 \
+      --gpus all \
+      --rm -it \
+      nvcr.io/nvidia/pytorch:25.12-py3
+    ```
+
+    <Tip>
+      If you already have a compatible CUDA environment outside Docker, you can skip this step and install directly into your existing environment.
+    </Tip>
+  </Step>
+
+  <Step title="Install Flash Attention (optional)">
+    Flash Attention 2 significantly reduces memory usage and speeds up inference on long audio. It is optional — the model falls back to SDPA if not installed.
+
+    ```bash
+    # Only needed if your container does not already include flash-attn.
+    # See https://github.com/Dao-AILab/flash-attention for details.
+    pip install flash-attn --no-build-isolation
+    ```
+
+    <Note>
+      The NVIDIA PyTorch 25.12 container ships with Flash Attention pre-installed. Check with `python -c "import flash_attn; print(flash_attn.__version__)"` before installing.
+    </Note>
+  </Step>
+
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/microsoft/VibeVoice.git
+    cd VibeVoice
+    ```
+  </Step>
+
+  <Step title="Install the package">
+    Install VibeVoice in editable mode so local changes take effect immediately:
+
+    ```bash
+    pip install -e .
+    ```
+  </Step>
+
+  <Step title="Verify the installation">
+    Confirm the model class and processor are importable:
+
+    ```python
+    from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration
+    from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
+
+    print("VibeVoice-ASR installed successfully")
+    ```
+
+    You should see `VibeVoice-ASR installed successfully` printed without errors.
+  </Step>
+</Steps>
+
+## System requirements
+
+| Component | Requirement |
+|-----------|-------------|
+| GPU | NVIDIA GPU with CUDA support |
+| CUDA | 12.x (verified with NVIDIA container 24.07–25.12) |
+| Python | 3.10 or later |
+| RAM | 32 GB system RAM recommended |
+| Disk | ~15 GB for model weights (HuggingFace cache) |
+
+## Attention backend selection
+
+The inference scripts auto-detect the best available attention backend:
+
+| Device | Default backend |
+|--------|-----------------|
+| CUDA + `flash-attn` installed | `flash_attention_2` |
+| CUDA without `flash-attn` | `sdpa` |
+| MPS / XPU / CPU | `sdpa` |
+
+You can override this with `--attn_implementation` when running the demo scripts.
+
+<Warning>
+  Flash Attention 2 is only supported on CUDA devices. Do not pass `attn_implementation="flash_attention_2"` when running on CPU or MPS.
+</Warning>

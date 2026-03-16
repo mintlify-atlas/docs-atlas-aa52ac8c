@@ -1,0 +1,116 @@
+---
+title: "vLLM deployment"
+description: "Deploy VibeVoice-ASR as a high-throughput OpenAI-compatible API service using vLLM continuous batching and the VibeVoice vLLM plugin."
+---
+
+The VibeVoice vLLM plugin lets you serve VibeVoice-ASR behind an OpenAI-compatible `/v1/chat/completions` endpoint without modifying vLLM's source code. The plugin registers the model architecture, configuration, tokenizer, and processor with vLLM's registries via a `vllm.general_plugins` entry point.
+
+<CardGroup cols={2}>
+  <Card title="High-throughput serving" icon="server">
+    vLLM continuous batching handles concurrent transcription requests efficiently
+  </Card>
+  <Card title="OpenAI-compatible API" icon="plug">
+    Standard `/v1/chat/completions` endpoint with streaming support
+  </Card>
+  <Card title="Long audio" icon="clock">
+    Process 60+ minutes of audio in a single request
+  </Card>
+  <Card title="No source modification" icon="shield-check">
+    Plugin architecture — install and run, no vLLM fork required
+  </Card>
+</CardGroup>
+
+## Installation
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/microsoft/VibeVoice.git
+    cd VibeVoice
+    ```
+  </Step>
+
+  <Step title="Launch the server">
+    Run the official vLLM Docker image with the VibeVoice plugin mounted as a volume. The `-d` flag starts the container in detached (background) mode.
+
+    ```bash
+    docker run -d --gpus all --name vibevoice-vllm \
+      --ipc=host \
+      -p 8000:8000 \
+      -e VIBEVOICE_FFMPEG_MAX_CONCURRENCY=64 \
+      -e PYTORCH_ALLOC_CONF=expandable_segments:True \
+      -v $(pwd):/app \
+      -w /app \
+      --entrypoint bash \
+      vllm/vllm-openai:v0.14.1 \
+      -c "python3 /app/vllm_plugin/scripts/start_server.py"
+    ```
+  </Step>
+
+  <Step title="Follow the logs">
+    Wait for the model to finish loading before sending requests:
+
+    ```bash
+    docker logs -f vibevoice-vllm
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  The model is downloaded to the HuggingFace cache (`~/.cache/huggingface`) inside the container on first start. Subsequent starts reuse the cached weights. Stop the service with `docker stop vibevoice-vllm`.
+</Note>
+
+## Testing the API
+
+All test commands run inside the container so they can reach the mounted audio files under `/app`.
+
+<Tip>
+  Copy your audio files into the `VibeVoice/` directory before testing so they are accessible at `/app/<filename>` inside the container.
+</Tip>
+
+### Basic transcription
+
+<CodeGroup>
+
+```bash transcribe audio
+docker exec -it vibevoice-vllm python3 vllm_plugin/tests/test_api.py /app/audio.wav
+```
+
+```bash transcribe with hotwords
+docker exec -it vibevoice-vllm python3 vllm_plugin/tests/test_api.py /app/audio.wav --hotwords "Microsoft,VibeVoice"
+```
+
+</CodeGroup>
+
+Hotwords improve recognition accuracy for domain-specific terms — proper nouns, technical vocabulary, and speaker names are good candidates.
+
+### Auto-recovery for long audio
+
+The `test_api_auto_recover.py` script detects repetition loops that can occur in very long audio and automatically retries with recovery logic:
+
+<CodeGroup>
+
+```bash auto-recover transcription
+docker exec -it vibevoice-vllm python3 vllm_plugin/tests/test_api_auto_recover.py /app/audio.wav
+```
+
+```bash auto-recover with hotwords
+docker exec -it vibevoice-vllm python3 vllm_plugin/tests/test_api_auto_recover.py /app/audio.wav --hotwords "Microsoft,VibeVoice"
+```
+
+</CodeGroup>
+
+## Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VIBEVOICE_FFMPEG_MAX_CONCURRENCY` | `64` | Maximum number of parallel FFmpeg processes used for audio decoding. Tune down if the host has few CPU cores. |
+| `PYTORCH_ALLOC_CONF` | `expandable_segments:True` | PyTorch CUDA memory allocator configuration. The default reduces fragmentation for variable-length audio inputs. |
+
+## Performance tuning
+
+1. **GPU memory utilization** — Pass `--gpu-memory-utilization 0.9` to the vLLM server startup script when you have a dedicated GPU. This maximizes KV-cache size and throughput.
+
+2. **Concurrency** — Increase `--max-num-seqs` to handle more simultaneous requests. Each additional sequence requires more GPU memory for its KV-cache.
+
+3. **FFmpeg concurrency** — Set `VIBEVOICE_FFMPEG_MAX_CONCURRENCY` to approximately the number of physical CPU cores available. Audio decoding is CPU-bound, so over-provisioning wastes memory without improving throughput.

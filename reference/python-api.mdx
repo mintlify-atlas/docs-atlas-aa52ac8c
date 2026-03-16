@@ -1,0 +1,312 @@
+---
+title: Python API
+description: Complete reference for the vibevoice package public API — classes, constructors, and methods.
+---
+
+The `vibevoice` package exports four public classes. Import them directly from the top-level package:
+
+```python
+from vibevoice import (
+    VibeVoiceStreamingForConditionalGenerationInference,
+    VibeVoiceStreamingConfig,
+    VibeVoiceStreamingProcessor,
+    VibeVoiceTokenizerProcessor,
+)
+```
+
+The streaming model and streamer helpers are also available from the `modular` subpackage:
+
+```python
+from vibevoice.modular import (
+    VibeVoiceStreamingForConditionalGenerationInference,
+    VibeVoiceStreamingConfig,
+    AudioStreamer,
+    AsyncAudioStreamer,
+)
+```
+
+---
+
+## VibeVoiceStreamingConfig
+
+Configuration class for the VibeVoice Streaming model. Inherits from `transformers.PretrainedConfig`.
+
+```python
+from vibevoice import VibeVoiceStreamingConfig
+
+config = VibeVoiceStreamingConfig(
+    tts_backbone_num_hidden_layers=20,
+)
+```
+
+### Constructor
+
+<ParamField path="acoustic_tokenizer_config" type="VibeVoiceAcousticTokenizerConfig | dict | None" default="None">
+  Configuration for the acoustic tokenizer sub-model. Accepts an instance of `VibeVoiceAcousticTokenizerConfig`, a dict (must include `model_type: vibevoice_acoustic_tokenizer`), or `None` to use defaults.
+</ParamField>
+
+<ParamField path="decoder_config" type="Qwen2Config | dict | None" default="None">
+  Configuration for the Qwen2-based language model decoder. Accepts a `Qwen2Config` instance, a dict with `model_type: qwen2`, or `None` to use defaults.
+</ParamField>
+
+<ParamField path="diffusion_head_config" type="VibeVoiceDiffusionHeadConfig | dict | None" default="None">
+  Configuration for the diffusion prediction head. Accepts an instance, a dict, or `None` to use defaults.
+</ParamField>
+
+<ParamField path="tts_backbone_num_hidden_layers" type="int" default="20">
+  Number of upper transformer layers used for TTS generation. The full decoder is split: lower layers handle text encoding only; upper layers (`tts_backbone_num_hidden_layers`) handle both text encoding and speech generation.
+</ParamField>
+
+### Properties
+
+<ResponseField name="num_hidden_layers" type="int">
+  Proxies `decoder_config.num_hidden_layers`. Required for transformers >= 4.57 compatibility.
+</ResponseField>
+
+<ResponseField name="acoustic_vae_dim" type="int">
+  Dimensionality of the acoustic VAE latent space, derived from `acoustic_tokenizer_config.vae_dim` (default: `64`).
+</ResponseField>
+
+### Methods
+
+#### `get_text_config(decoder=False)`
+
+Returns `decoder_config`. Required for transformers >= 4.57 cache compatibility.
+
+#### `to_dict()`
+
+Serializes the config to a dictionary, converting any `torch.dtype` values to strings for JSON serialization.
+
+---
+
+## VibeVoiceStreamingForConditionalGenerationInference
+
+The main inference class for VibeVoice Streaming TTS. Inherits from `VibeVoiceStreamingPreTrainedModel` and `transformers.GenerationMixin`. Registered with `AutoModelForCausalLM`.
+
+<Warning>
+  `forward()` is intentionally disabled on this class. Use `forward_lm`, `forward_tts_lm`, or `generate` instead.
+</Warning>
+
+```python
+from vibevoice import VibeVoiceStreamingConfig, VibeVoiceStreamingForConditionalGenerationInference
+from transformers import AutoModelForCausalLM
+
+# Load from Hugging Face Hub
+model = AutoModelForCausalLM.from_pretrained(
+    "microsoft/VibeVoice-Realtime-0.5B",
+    trust_remote_code=True,
+)
+```
+
+### Constructor
+
+<ParamField path="config" type="VibeVoiceStreamingConfig" required>
+  Model configuration. Instantiated automatically when loading with `from_pretrained`.
+</ParamField>
+
+### Key methods
+
+#### `generate(...)`
+
+Full streaming TTS generation loop. Interleaves windowed text prefill with speech diffusion sampling. Only supports `batch_size == 1`.
+
+<ParamField path="inputs" type="torch.Tensor | None">
+  Input token ids tensor.
+</ParamField>
+
+<ParamField path="tts_text_ids" type="torch.LongTensor | None">
+  Full text token ids to stream into the TTS LM in windows of size 5 (`TTS_TEXT_WINDOW_SIZE`).
+</ParamField>
+
+<ParamField path="audio_streamer" type="AudioStreamer | AsyncAudioStreamer | None">
+  If provided, audio chunks are emitted to this streamer during generation rather than accumulated and returned at the end.
+</ParamField>
+
+<ParamField path="cfg_scale" type="float" default="1.0">
+  Classifier-free guidance scale for speech diffusion. Higher values push the output closer to the conditioned distribution.
+</ParamField>
+
+<ParamField path="return_speech" type="bool" default="True">
+  If `False`, skips acoustic decoding and does not return audio. Useful when consuming audio via `audio_streamer`.
+</ParamField>
+
+<ParamField path="stop_check_fn" type="Callable[[], bool] | None">
+  External early-stop hook. Called before each generation step; returning `True` halts generation immediately.
+</ParamField>
+
+<ParamField path="generation_config" type="GenerationConfig | None">
+  Hugging Face `GenerationConfig`. BOS, EOS, and PAD token IDs are overridden from the tokenizer automatically.
+</ParamField>
+
+**Returns:** `VibeVoiceGenerationOutput` with:
+
+<ResponseField name="sequences" type="torch.LongTensor">
+  Final generated token id sequences, shape `(batch_size, sequence_length)`.
+</ResponseField>
+
+<ResponseField name="speech_outputs" type="List[torch.FloatTensor] | None">
+  List of concatenated audio waveform tensors, one per batch item. `None` when `return_speech=False`.
+</ResponseField>
+
+<ResponseField name="reach_max_step_sample" type="torch.BoolTensor">
+  Boolean flags indicating which samples were stopped by max length rather than EOS.
+</ResponseField>
+
+#### `forward_lm(...)`
+
+Single forward pass through the base text language model.
+
+```python
+outputs = model.forward_lm(
+    input_ids=input_ids,
+    attention_mask=attention_mask,
+    past_key_values=past_key_values,
+    use_cache=True,
+    return_dict=True,
+)
+# outputs.last_hidden_state: (B, S, H)
+# outputs.past_key_values: cache for next step
+```
+
+<ParamField path="input_ids" type="torch.LongTensor">
+  Shape `(B, S)`. Token ids. Mutually exclusive with `inputs_embeds`.
+</ParamField>
+
+<ParamField path="attention_mask" type="torch.Tensor | None">
+  Shape `(B, S)`. Attention mask.
+</ParamField>
+
+<ParamField path="past_key_values">
+  KV cache from previous steps.
+</ParamField>
+
+<ParamField path="cache_position" type="torch.LongTensor | None">
+  Positions of the cached tokens.
+</ParamField>
+
+**Returns:** `BaseModelOutputWithPast` with `last_hidden_state` and `past_key_values`.
+
+#### `forward_tts_lm(...)`
+
+Single forward pass through the TTS language model. Splices LM hidden states into the embeddings and runs the binary EOS classifier.
+
+<ParamField path="lm_last_hidden_state" type="torch.FloatTensor">
+  Shape `(B, K, H)`. Hidden states from the base LM to splice into the tail of the TTS LM embeddings.
+</ParamField>
+
+<ParamField path="tts_text_masks" type="torch.BoolTensor">
+  Shape `(B, 1)`. Marks current position as text (`1`) or speech (`0`) to select the appropriate type embedding.
+</ParamField>
+
+**Returns:** `VibeVoiceCausalLMOutputWithPast` with `logits` (EOS probability), `last_hidden_state`, and `past_key_values`.
+
+#### `sample_speech_tokens(condition, neg_condition, cfg_scale=3.0)`
+
+Runs DDPM diffusion sampling for one speech latent frame given positive and negative conditioning vectors.
+
+```python
+speech_latent = model.sample_speech_tokens(
+    condition=positive_hidden,    # (B, H)
+    neg_condition=negative_hidden, # (B, H)
+    cfg_scale=3.0,
+)  # returns (B, acoustic_vae_dim)
+```
+
+#### `set_speech_tokenizers(acoustic_tokenizer=None)`
+
+Attaches a pre-loaded acoustic tokenizer to the model.
+
+#### `set_ddpm_inference_steps(num_steps=None)`
+
+Overrides the number of DDPM inference steps at runtime. Defaults to `config.diffusion_head_config.ddpm_num_inference_steps`.
+
+---
+
+## AudioStreamer
+
+Synchronous audio streamer backed by `queue.Queue`. Stores audio chunks per batch sample for real-time consumption during generation. Inherits from `transformers.generation.BaseStreamer`.
+
+```python
+from vibevoice.modular import AudioStreamer
+
+streamer = AudioStreamer(batch_size=1, timeout=30.0)
+
+# Pass to generate; then consume from a separate thread:
+for chunk in streamer.get_stream(sample_idx=0):
+    play_audio(chunk)  # torch.Tensor, CPU
+```
+
+### Constructor
+
+<ParamField path="batch_size" type="int" required>
+  Number of samples in the generation batch.
+</ParamField>
+
+<ParamField path="stop_signal" type="any" default="None">
+  Sentinel value placed in each queue when generation ends. The iterator raises `StopIteration` on receipt.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="None">
+  Timeout in seconds for queue operations. `None` blocks indefinitely.
+</ParamField>
+
+### Methods
+
+#### `put(audio_chunks, sample_indices)`
+
+Puts audio chunks into per-sample queues. Called internally by `generate`.
+
+<ParamField path="audio_chunks" type="torch.Tensor">
+  Shape `(num_samples, ...)`. Audio chunks; moved to CPU before queuing.
+</ParamField>
+
+<ParamField path="sample_indices" type="torch.Tensor">
+  Maps each chunk to its batch sample index.
+</ParamField>
+
+#### `end(sample_indices=None)`
+
+Signals end-of-stream. If `sample_indices` is `None`, ends all samples.
+
+#### `get_stream(sample_idx)`
+
+Returns an `AudioSampleIterator` for the given sample index. Iterating it yields CPU tensors until the stop signal is received.
+
+#### `__iter__()`
+
+Returns an `AudioBatchIterator` that yields `dict[int, torch.Tensor]` — a mapping from sample index to chunk for all active samples.
+
+---
+
+## AsyncAudioStreamer
+
+Async version of `AudioStreamer` using `asyncio.Queue`. Use this in async server contexts (e.g., FastAPI, aiohttp).
+
+```python
+from vibevoice.modular import AsyncAudioStreamer
+
+streamer = AsyncAudioStreamer(batch_size=1)
+
+# In your async handler:
+async def stream_audio():
+    async for chunk in streamer.get_stream(sample_idx=0):
+        await websocket.send(chunk.numpy().tobytes())
+```
+
+<Note>
+  `AsyncAudioStreamer.__init__` calls `asyncio.get_running_loop()`, so it must be instantiated inside a running event loop.
+</Note>
+
+### Constructor
+
+Same parameters as `AudioStreamer`. Internally replaces `queue.Queue` with `asyncio.Queue`.
+
+### Additional methods
+
+#### `async get_stream(sample_idx)` (async generator)
+
+Async generator that yields audio chunks for a single sample. Terminates when the stop signal is received.
+
+#### `__aiter__()`
+
+Returns an `AsyncAudioBatchIterator` for iterating over all active samples with `async for`.

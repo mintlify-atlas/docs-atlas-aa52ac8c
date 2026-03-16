@@ -1,0 +1,265 @@
+---
+title: Processor API
+description: Reference for VibeVoiceStreamingProcessor and VibeVoiceTokenizerProcessor — preprocessing text and audio for VibeVoice models.
+---
+
+The processor classes prepare inputs for VibeVoice models. Import from the top-level package:
+
+```python
+from vibevoice import VibeVoiceStreamingProcessor, VibeVoiceTokenizerProcessor
+```
+
+Or directly from the subpackage:
+
+```python
+from vibevoice.processor import (
+    VibeVoiceStreamingProcessor,
+    VibeVoiceTokenizerProcessor,
+    AudioNormalizer,
+)
+```
+
+---
+
+## VibeVoiceStreamingProcessor
+
+Combines the text tokenizer and audio processor into a single interface for streaming TTS inference. This processor is designed for cached-prompt workflows — it does not implement `__call__`; use `process_input_with_cached_prompt` instead.
+
+### Constructor
+
+<ParamField path="tokenizer" type="VibeVoiceTextTokenizer | VibeVoiceTextTokenizerFast | None">
+  Text tokenizer for encoding input scripts.
+</ParamField>
+
+<ParamField path="audio_processor" type="VibeVoiceTokenizerProcessor | None">
+  Audio feature extractor for processing speech prompt inputs.
+</ParamField>
+
+<ParamField path="speech_tok_compress_ratio" type="int" default="3200">
+  Compression ratio used to compute acoustic token sequence lengths from raw audio sample counts.
+</ParamField>
+
+<ParamField path="db_normalize" type="bool" default="True">
+  Whether to apply dB FS normalization to audio inputs via `AudioNormalizer`.
+</ParamField>
+
+### Class methods
+
+#### `from_pretrained(pretrained_model_name_or_path, **kwargs)`
+
+Loads a processor from a local directory or the Hugging Face Hub.
+
+```python
+processor = VibeVoiceStreamingProcessor.from_pretrained(
+    "microsoft/VibeVoice-Realtime-0.5B"
+)
+```
+
+The method reads `preprocessor_config.json` and loads the tokenizer (Qwen2-based) and audio processor according to the config. Pass `language_model_pretrained_name` as a keyword argument to override the tokenizer source.
+
+<ParamField path="pretrained_model_name_or_path" type="str | os.PathLike" required>
+  A Hugging Face model ID or path to a local directory containing `preprocessor_config.json`.
+</ParamField>
+
+### Instance methods
+
+#### `process_input_with_cached_prompt(...)`
+
+Main preprocessing method. Encodes a single text script against a cached voice prompt's KV cache.
+
+```python
+processed = processor.process_input_with_cached_prompt(
+    text="Hello, how can I help you today?",
+    cached_prompt=cached_prompt,
+    return_tensors="pt",
+)
+# processed.input_ids              — pseudo input ids sized to KV cache length
+# processed.tts_lm_input_ids       — pseudo input ids for TTS LM
+# processed.tts_text_ids           — actual encoded text tokens
+# processed.attention_mask         — attention mask
+# processed.tts_lm_attention_mask  — TTS LM attention mask
+# processed.speech_input_mask      — bool mask for speech token positions
+# processed.speech_tensors         — padded speech inputs (None if no voice samples)
+# processed.speech_masks           — speech padding masks
+```
+
+<ParamField path="text" type="str | None">
+  The input script to synthesize. A newline is appended before tokenization.
+</ParamField>
+
+<ParamField path="cached_prompt" type="dict | None">
+  Cached voice prompt dictionary. Must contain `lm.last_hidden_state` and `tts_lm.last_hidden_state` tensors whose sequence-length dimension determines the pseudo input ID lengths.
+</ParamField>
+
+<ParamField path="padding" type="bool | str | PaddingStrategy" default="True">
+  Padding strategy for batching.
+</ParamField>
+
+<ParamField path="truncation" type="bool | str | TruncationStrategy" default="False">
+  Truncation strategy.
+</ParamField>
+
+<ParamField path="max_length" type="int | None">
+  Maximum token sequence length.
+</ParamField>
+
+<ParamField path="return_tensors" type="str | TensorType | None">
+  Return format. Pass `"pt"` for PyTorch tensors.
+</ParamField>
+
+<ParamField path="return_attention_mask" type="bool" default="True">
+  Whether to include attention masks in the output.
+</ParamField>
+
+**Returns:** `BatchEncoding` with keys: `input_ids`, `attention_mask`, `tts_lm_input_ids`, `tts_lm_attention_mask`, `tts_text_ids`, `speech_input_mask`, `speech_tensors`, `speech_masks`.
+
+#### `prepare_speech_inputs(speech_inputs, return_tensors=None, device=None, dtype=None)`
+
+Pads a list of raw audio arrays and returns a dictionary with `padded_speeches` and `speech_masks`.
+
+<ParamField path="speech_inputs" type="List[np.ndarray]" required>
+  List of 1-D audio arrays. Lengths may differ; shorter arrays are zero-padded.
+</ParamField>
+
+<ParamField path="return_tensors" type="str | None">
+  Pass `"pt"` to receive `torch.Tensor` outputs.
+</ParamField>
+
+<ParamField path="device" type="str | torch.device | None">
+  Target device for tensors.
+</ParamField>
+
+<ParamField path="dtype" type="torch.dtype | None">
+  Data type for tensors. Defaults to `torch.float32`.
+</ParamField>
+
+#### `save_audio(audio, output_path="output.wav", sampling_rate=None, normalize=False, batch_prefix="audio_")`
+
+Convenience wrapper around `VibeVoiceTokenizerProcessor.save_audio`. Saves generated audio to disk.
+
+<ParamField path="audio" type="torch.Tensor | np.ndarray | List">
+  Audio data. Accepts tensors `(B, C, T)`, `(B, T)`, or `(T)`, and equivalent numpy arrays or lists.
+</ParamField>
+
+<ParamField path="output_path" type="str" default="output.wav">
+  Destination path. When saving a batch, treated as a directory.
+</ParamField>
+
+<ParamField path="sampling_rate" type="int | None">
+  Output sample rate. Defaults to the processor's `sampling_rate`.
+</ParamField>
+
+<ParamField path="normalize" type="bool" default="False">
+  Peak-normalize the audio before saving.
+</ParamField>
+
+#### `decode(*args, **kwargs)` / `batch_decode(*args, **kwargs)`
+
+Forwards to the underlying tokenizer's `decode` / `batch_decode`.
+
+#### `save_pretrained(save_directory, **kwargs)`
+
+Writes `preprocessor_config.json` to `save_directory`.
+
+---
+
+## VibeVoiceTokenizerProcessor
+
+Audio feature extractor for VibeVoice models. Inherits from `transformers.FeatureExtractionMixin`. Handles format conversion (stereo → mono), optional dB normalization, and file loading.
+
+### Constructor
+
+<ParamField path="sampling_rate" type="int" default="24000">
+  Expected input sampling rate in Hz.
+</ParamField>
+
+<ParamField path="normalize_audio" type="bool" default="True">
+  Whether to apply dB FS normalization using `AudioNormalizer`.
+</ParamField>
+
+<ParamField path="target_dB_FS" type="float" default="-25">
+  Target loudness in dB FS for normalization.
+</ParamField>
+
+<ParamField path="eps" type="float" default="1e-6">
+  Small constant for numerical stability during normalization.
+</ParamField>
+
+### Usage
+
+```python
+processor = VibeVoiceTokenizerProcessor(
+    sampling_rate=24000,
+    normalize_audio=True,
+    target_dB_FS=-25,
+)
+
+# From a file path
+output = processor("voice_prompt.wav", return_tensors="pt")
+audio_tensor = output["audio"]  # (1, 1, T)
+
+# From a numpy array
+import numpy as np
+audio_np = np.random.randn(24000).astype(np.float32)  # 1 second
+output = processor(audio_np, return_tensors="pt")
+```
+
+### `__call__` method
+
+<ParamField path="audio" type="str | np.ndarray | List[float] | List[np.ndarray] | List[str]" required>
+  Audio input(s). Accepts:
+  - `str` — path to a `.wav`, `.mp3`, `.flac`, `.m4a`, `.ogg`, `.pt`, or `.npy` file
+  - `np.ndarray` — raw audio array
+  - `List[float]` — audio as a list of floats
+  - `List[np.ndarray]` — batch of arrays
+  - `List[str]` — batch of file paths
+</ParamField>
+
+<ParamField path="sampling_rate" type="int | None">
+  Declared sampling rate of the input. Logs a warning if it differs from `self.sampling_rate`; does not resample.
+</ParamField>
+
+<ParamField path="return_tensors" type="str | None">
+  `"pt"` for PyTorch tensors, `"np"` for NumPy arrays, `None` for raw lists.
+</ParamField>
+
+**Returns:** `dict` with key `"audio"` containing the processed array or tensor of shape `(1, 1, T)` for single inputs.
+
+### Other methods
+
+#### `preprocess_audio(audio_path_or_array, normalize=None)`
+
+Convenience method. Loads a file or accepts a numpy array, applies mono conversion and optional normalization, returns a 1-D `np.ndarray`.
+
+#### `save_audio(audio, output_path="output.wav", sampling_rate=None, normalize=False, batch_prefix="audio_")`
+
+Saves audio to WAV files using `soundfile`. Handles tensors and arrays at various shapes `(B, C, T)`, `(B, T)`, or `(T)`.
+
+**Returns:** `List[str]` of saved file paths.
+
+<Note>
+  `soundfile` must be installed to use `save_audio`: `pip install soundfile`
+</Note>
+
+---
+
+## AudioNormalizer
+
+Utility class for dB FS audio normalization. Available at `vibevoice.processor.AudioNormalizer`.
+
+```python
+from vibevoice.processor import AudioNormalizer
+import numpy as np
+
+normalizer = AudioNormalizer(target_dB_FS=-25, eps=1e-6)
+audio_np = np.random.randn(24000).astype(np.float32)
+normalized = normalizer(audio_np)
+```
+
+<ParamField path="target_dB_FS" type="float" default="-25">
+  Target loudness in dB FS.
+</ParamField>
+
+<ParamField path="eps" type="float" default="1e-6">
+  Small constant to prevent division by zero.
+</ParamField>

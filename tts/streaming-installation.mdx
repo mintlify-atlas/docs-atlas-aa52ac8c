@@ -1,0 +1,89 @@
+---
+title: "Streaming TTS Installation"
+description: "Install VibeVoice-Realtime-0.5B with the NVIDIA PyTorch container"
+---
+
+## Requirements
+
+- NVIDIA GPU with CUDA support
+- Docker (for NVIDIA container approach — strongly recommended)
+- Python 3.9+
+- Git
+
+<Tip>
+  NVIDIA T4 and Mac M4 Pro have been verified to achieve real-time generation in tests. Weaker GPUs may require additional speed optimizations.
+</Tip>
+
+## Installation
+
+<Steps>
+  <Step title="Launch the NVIDIA PyTorch container">
+    The NVIDIA PyTorch container provides a pre-configured CUDA environment. Containers 24.07, 24.10, and 24.12 are verified; later versions are also compatible.
+
+    ```bash
+    sudo docker run --privileged --net=host --ipc=host \
+      --ulimit memlock=-1:-1 --ulimit stack=-1:-1 \
+      --gpus all --rm -it \
+      nvcr.io/nvidia/pytorch:24.07-py3
+    ```
+  </Step>
+
+  <Step title="(Optional) Install Flash Attention">
+    Flash Attention 2 provides faster attention computation and is recommended for performance. If it is not included in your Docker environment:
+
+    ```bash
+    # Refer to https://github.com/Dao-AILab/flash-attention for installation
+    pip install flash-attn --no-build-isolation
+    ```
+
+    <Note>
+      Flash Attention requires CUDA — it cannot be used on CPU-only environments.
+    </Note>
+  </Step>
+
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/microsoft/VibeVoice.git
+    cd VibeVoice/
+    ```
+  </Step>
+
+  <Step title="Install VibeVoice with streaming TTS extras">
+    The `[streamingtts]` extra pins `transformers==4.51.3` which is required for the streaming model. Without this extra, a different transformers version may be installed.
+
+    ```bash
+    pip install -e .[streamingtts]
+    ```
+
+    <Warning>
+      Use `pip install -e .[streamingtts]` — not `pip install -e .` — for the streaming TTS model. The pinned transformers version is required for compatibility.
+    </Warning>
+  </Step>
+
+  <Step title="(Optional) Download experimental multilingual voices">
+    Additional experimental speakers for 9 languages (German, French, Italian, Japanese, Korean, Dutch, Polish, Portuguese, Spanish) can be downloaded separately:
+
+    ```bash
+    bash demo/download_experimental_voices.sh
+    ```
+
+    Run this before launching the demo or running file inference if you want to use non-English voices.
+  </Step>
+
+  <Step title="Verify installation">
+    ```bash
+    python -c "from vibevoice import VibeVoiceStreamingForConditionalGenerationInference; print('OK')"
+    ```
+  </Step>
+</Steps>
+
+## Difference from base install
+
+| Install command | Use for |
+|-----------------|---------|
+| `pip install -e .` | VibeVoice-ASR only |
+| `pip install -e .[streamingtts]` | VibeVoice-Realtime-0.5B (pins transformers 4.51.3) |
+
+<Info>
+  If you need both ASR and streaming TTS, install with `[streamingtts]` — the ASR model is compatible with transformers 4.51.3.
+</Info>

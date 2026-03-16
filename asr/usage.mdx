@@ -1,0 +1,196 @@
+---
+title: "Usage"
+description: "Run VibeVoice-ASR as an interactive Gradio demo or perform batch inference from audio files."
+---
+
+<Tabs>
+  <Tab title="Gradio demo">
+    The Gradio demo launches a browser-based interface where you can upload audio files, record from your microphone, adjust generation parameters, and inspect per-segment playback.
+
+    **Install ffmpeg** (required for audio format conversion in the demo):
+
+    ```bash
+    apt update && apt install ffmpeg -y
+    ```
+
+    **Launch the demo**:
+
+    ```bash
+    python demo/vibevoice_asr_gradio_demo.py \
+      --model_path microsoft/VibeVoice-ASR \
+      --share
+    ```
+
+    The `--share` flag creates a public Gradio link. Omit it to keep the server local (`http://0.0.0.0:7860`).
+
+    **Additional options**:
+
+    | Flag | Default | Description |
+    |------|---------|-------------|
+    | `--model_path` | `microsoft/VibeVoice-ASR` | HuggingFace model ID or local path |
+    | `--attn_implementation` | `flash_attention_2` | Attention backend: `flash_attention_2`, `sdpa`, `eager` |
+    | `--max_new_tokens` | `32768` | Upper bound on tokens generated |
+    | `--host` | `0.0.0.0` | Server bind address |
+    | `--port` | `7860` | Server port |
+    | `--share` | `false` | Create public Gradio link |
+
+    <Tip>
+      Use the **Context Info** text box in the UI to supply hotwords, speaker names, or domain terms — one per line. This improves recognition accuracy for specialized vocabulary.
+    </Tip>
+  </Tab>
+
+  <Tab title="File inference">
+    For automated or scripted workflows, use the batch inference script to transcribe one or more audio files directly from the command line.
+
+    **Transcribe a single file**:
+
+    ```bash
+    python demo/vibevoice_asr_inference_from_file.py \
+      --model_path microsoft/VibeVoice-ASR \
+      --audio_files /path/to/audio.wav
+    ```
+
+    **Transcribe multiple files**:
+
+    ```bash
+    python demo/vibevoice_asr_inference_from_file.py \
+      --model_path microsoft/VibeVoice-ASR \
+      --audio_files audio1.wav audio2.flac audio3.mp3
+    ```
+
+    **Transcribe all files in a directory**:
+
+    ```bash
+    python demo/vibevoice_asr_inference_from_file.py \
+      --model_path microsoft/VibeVoice-ASR \
+      --audio_dir /path/to/audio_folder
+    ```
+
+    **Common options**:
+
+    | Flag | Default | Description |
+    |------|---------|-------------|
+    | `--model_path` | _(required)_ | HuggingFace model ID or local checkpoint path |
+    | `--audio_files` | — | One or more audio file paths |
+    | `--audio_dir` | — | Directory to scan for audio files |
+    | `--batch_size` | `2` | Number of audio files per batch |
+    | `--device` | auto-detected | `cuda`, `cpu`, `mps`, `xpu`, or `auto` |
+    | `--max_new_tokens` | `32768` | Maximum tokens to generate per file |
+    | `--temperature` | `0.0` | Sampling temperature (0 = greedy decoding) |
+    | `--attn_implementation` | `auto` | Attention backend (`flash_attention_2`, `sdpa`, `eager`, `auto`) |
+  </Tab>
+
+  <Tab title="Python API">
+    You can embed VibeVoice-ASR directly in your Python code:
+
+    ```python
+    import torch
+    from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration
+    from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
+
+    model_path = "microsoft/VibeVoice-ASR"
+
+    # Load processor and model
+    processor = VibeVoiceASRProcessor.from_pretrained(model_path)
+    model = VibeVoiceASRForConditionalGeneration.from_pretrained(
+        model_path,
+        dtype=torch.bfloat16,
+        attn_implementation="flash_attention_2",
+        trust_remote_code=True,
+    ).to("cuda").eval()
+
+    # Prepare inputs
+    inputs = processor(
+        audio="/path/to/audio.wav",
+        return_tensors="pt",
+        add_generation_prompt=True,
+    )
+    inputs = {k: v.to("cuda") if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
+
+    # Generate
+    with torch.no_grad():
+        output_ids = model.generate(
+            **inputs,
+            max_new_tokens=32768,
+            do_sample=False,
+            pad_token_id=processor.pad_id,
+            eos_token_id=processor.tokenizer.eos_token_id,
+        )
+
+    # Decode
+    generated_ids = output_ids[0, inputs["input_ids"].shape[1]:]
+    raw_text = processor.decode(generated_ids, skip_special_tokens=True)
+    segments = processor.post_process_transcription(raw_text)
+
+    for seg in segments:
+        print(f"[{seg['start_time']:.2f}s - {seg['end_time']:.2f}s] "
+              f"Speaker {seg['speaker_id']}: {seg['text']}")
+    ```
+  </Tab>
+</Tabs>
+
+## Output format
+
+All usage modes produce the same structured output. `post_process_transcription` parses the raw model text into a list of segment dictionaries:
+
+```json
+[
+  {
+    "speaker_id": 0,
+    "start_time": 0.0,
+    "end_time": 4.32,
+    "text": "Welcome everyone to today's meeting."
+  },
+  {
+    "speaker_id": 1,
+    "start_time": 4.85,
+    "end_time": 9.10,
+    "text": "Thanks for having me. Let's get started."
+  }
+]
+```
+
+The `raw_text` field contains the unparsed model output, which is also valid JSON but formatted as a single string.
+
+## Using hotwords
+
+Hotwords allow you to bias the model toward specific terms — proper nouns, product names, technical vocabulary, or speaker names — that might otherwise be transcribed incorrectly.
+
+<Tabs>
+  <Tab title="Gradio UI">
+    In the demo, enter hotwords in the **Context Info** text box before clicking **Transcribe**. Place one item per line or separate with commas:
+
+    ```
+    John Smith
+    Machine Learning
+    VibeVoice
+    ```
+  </Tab>
+
+  <Tab title="Python API">
+    Pass the `context_info` argument to the processor:
+
+    ```python
+    inputs = processor(
+        audio="/path/to/audio.wav",
+        return_tensors="pt",
+        add_generation_prompt=True,
+        context_info="John Smith\nMachine Learning\nVibeVoice",
+    )
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Hotwords are injected as natural language context into the model's prompt. They guide generation but do not hard-force specific outputs — the model may still transcribe differently if the audio signal is ambiguous.
+</Note>
+
+## Supported audio formats
+
+The following audio formats are supported when using `ffmpeg`-backed loading:
+
+`wav`, `mp3`, `flac`, `mp4`, `m4a`, `webm`, and other common container formats.
+
+<Info>
+  The model resamples audio to 24 kHz internally. You do not need to pre-process audio to a specific sample rate.
+</Info>

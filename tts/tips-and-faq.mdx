@@ -1,0 +1,81 @@
+---
+title: "TTS Tips and FAQ"
+description: "Practical tips for VibeVoice-TTS and answers to common questions"
+---
+
+## Tips for VibeVoice-TTS
+
+<Tip>
+  VibeVoice-TTS code is currently disabled. The tips below apply to running model weights directly through the Hugging Face transformers API if you are doing custom research work.
+</Tip>
+
+### Chinese speech stability
+
+Users may encounter occasional instability when synthesizing Chinese speech. The following practices help:
+
+- Use **English punctuation** even for Chinese text — prefer commas (`,`) and periods (`.`) only
+- Use the **Large model variant** (`VibeVoice-Large`), which is considerably more stable for Chinese
+- If the generated voice speaks too fast, **chunk your text** into multiple speaker turns with the same speaker label
+
+### Spontaneous background music
+
+The model can spontaneously generate background music or ambient sounds. This is an intentional emergent behavior from training on non-denoised data. To minimize unwanted BGM:
+
+- Use a **clean voice prompt** (no background music in the reference audio)
+- Avoid opening phrases like "Welcome to", "Hello", or "However" — these tend to trigger BGM
+- Avoid the "Alice" speaker voice, which has a higher BGM rate
+- The **Large model** is more stable and has lower probability of unexpected background music
+
+### Text that may cause issues
+
+- **Code and formulas** — pre-process to remove or normalize before synthesis
+- **Uncommon symbols** — normalize to plain text equivalents
+- **Chinese quotation marks** — may occasionally cause pronunciation issues
+- **Very short inputs** (3 words or fewer) — model stability may degrade
+
+## FAQ
+
+<AccordionGroup>
+  <Accordion title="Is VibeVoice-TTS a pretrained model or fine-tuned?">
+    It is a **pretrained model** without any post-training or benchmark-specific optimizations. This makes it very versatile — it handles a wide range of inputs and styles — but also means outputs can sometimes be unpredictable or include emergent behaviors not seen in more constrained models.
+  </Accordion>
+
+  <Accordion title="Why does the model sometimes generate background music or sounds?">
+    The training data was intentionally **not denoised**, so the model learned to generate contextually appropriate ambient sounds and music. This is a feature, not a bug — the model is content-aware, meaning these sounds are triggered by the input text and voice prompt characteristics.
+
+    The Large model variant is more stable and has a lower probability of generating unexpected background music.
+  </Accordion>
+
+  <Accordion title="Does the model perform text normalization?">
+    **No.** The philosophy is that a large language model should handle complex inputs directly. However, due to training data characteristics, corner cases exist — particularly with code, mathematical formulas, uncommon symbols, and Chinese special characters.
+
+    Pre-process input text to remove or normalize problematic content before synthesis.
+  </Accordion>
+
+  <Accordion title="Can the model sing?">
+    Yes, this is an **emergent capability**. The training data contains no music, so singing ability emerged naturally from language model generalization. It may sound off-key on well-known songs. The Large model variant is more likely to exhibit singing than the 1.5B model.
+  </Accordion>
+
+  <Accordion title="Why are there Chinese pronunciation errors?">
+    The volume of Chinese training data is significantly smaller than English. Additionally, certain special characters (e.g., Chinese quotation marks `「」` and `『』`) may occasionally cause pronunciation issues. Using the Large model and English punctuation improves stability.
+  </Accordion>
+
+  <Accordion title="How stable is cross-lingual transfer?">
+    The model exhibits **strong but unstable** cross-lingual transfer, including preservation of accents. This is an emergent capability not specifically optimized. If you don't get a satisfactory result on the first attempt, repeated sampling may produce better outputs.
+  </Accordion>
+
+  <Accordion title="How can I control emotion in generated speech?">
+    Community member [PsiPi](https://huggingface.co/PsiPi) discovered an interesting method for emotion control — see [HuggingFace discussion #12](https://huggingface.co/microsoft/VibeVoice-1.5B/discussions/12) for details.
+  </Accordion>
+</AccordionGroup>
+
+## Limitations summary
+
+| Limitation | Details |
+|------------|---------|
+| Languages | English and Chinese primary; other languages unpredictable |
+| Overlapping speech | Model does not generate overlapping speech segments |
+| Code/formulas | Not supported; pre-process input |
+| Non-speech audio | Cannot generate background noise, music (unless emergent), or sound effects on demand |
+| Bias | Inherits biases from Qwen2.5-1.5B base model |
+| Commercial use | Not recommended without further testing |
